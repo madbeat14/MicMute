@@ -3,34 +3,63 @@
 Microphone Mute Toggle - Final Version (PySide6/Qt + Native Hooks)
 
 ## Features
-- Configurable Hotkey (Dropdown or Capture)
-- Advanced Beep Configuration (Freq, Duration, Count)
-- Configurable Beep Sounds (Toggle in Tray Menu)
-- NO 'keyboard' library dependency (Uses native Windows Hooks via ctypes)
-- Single-Threaded Architecture (Hooks integrate with Qt Event Loop)
-- Event-driven Theme Detection (0% idle CPU)
-- Aggressive Memory Management
-- System tray icon using SVG files
-- "Select Microphone" dialog
-- Persists selection and settings to `mic_config.json`
+- **Configurable Hotkey**: Choose from a dropdown or capture any key.
+- **Advanced Beep Configuration**: Customize frequency, duration, and count for mute/unmute events.
+- **System Tray Integration**: Control everything from the tray icon.
+- **Native Hooks**: Uses low-level Windows hooks (ctypes) for reliable hotkey detection without admin privileges.
+- **Zero Dependencies** (Runtime): No 'keyboard' library required.
+- **Theme Aware**: Automatically switches icons based on system theme (Light/Dark).
+- **Device Selection**: Choose specifically which microphone to control.
 
 ## Installation
 
-```bash
-pip install -e .
-```
+### Prerequisites
+- Python 3.8+
+- [uv](https://github.com/astral-sh/uv) (Recommended for dependency management)
+
+### Steps
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/madbeat14/MicMute.git
+    cd MicMute
+    ```
+
+2.  **Install dependencies:**
+    Using `uv` (Fastest & Recommended):
+    ```bash
+    uv sync
+    ```
+    
+    *Or using standard pip:*
+    ```bash
+    pip install -e .
+    ```
 
 ## Usage
 
-Run the application:
+### Running from Source
+To run the application directly without building:
+
+Using `uv`:
+```bash
+uv run python run.py
+```
+
+*Or with standard python:*
+```bash
+python run.py
+```
+
+### Building the Executable
+To create a standalone `.exe` file:
 
 ```bash
-micmute
+uv run python build_exe.py
 ```
+The executable will be generated in the `dist/` folder as `MicMute.exe`.
 
-Or from python:
-
-```python
-from MicMute.main import main
-main()
-```
+## Project Structure
+- `src/MicMute`: Source code package.
+- `run.py`: Entry point for running from source.
+- `build_exe.py`: Script to build the standalone executable.
