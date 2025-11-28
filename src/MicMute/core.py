@@ -30,6 +30,7 @@ class AudioController:
             'unmute': {'freq': 700, 'duration': 200, 'count': 1}
         }
         self.hotkey_config = {'vk': 0xB3, 'name': 'Media Play/Pause'}
+        self.afk_config = {'enabled': False, 'timeout': 60}
         self.BEEP_ERROR = (200, 500)
         self.load_config()
 
@@ -46,6 +47,9 @@ class AudioController:
                     
                     saved_hotkey = data.get('hotkey')
                     if saved_hotkey: self.hotkey_config = saved_hotkey
+
+                    saved_afk = data.get('afk')
+                    if saved_afk: self.afk_config.update(saved_afk)
         except: pass
 
     def save_config(self):
@@ -55,7 +59,8 @@ class AudioController:
                     'device_id': self.device_id,
                     'beep_enabled': self.beep_enabled,
                     'beep_config': self.beep_config,
-                    'hotkey': self.hotkey_config
+                    'hotkey': self.hotkey_config,
+                    'afk': self.afk_config
                 }, f)
         except: pass
 
@@ -69,6 +74,10 @@ class AudioController:
 
     def update_hotkey_config(self, new_config):
         self.hotkey_config = new_config
+        self.save_config()
+
+    def update_afk_config(self, new_config):
+        self.afk_config = new_config
         self.save_config()
 
     def find_device(self):

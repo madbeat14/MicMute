@@ -9,11 +9,12 @@ from PySide6.QtGui import QIcon, QAction
 warnings.simplefilter("ignore", UserWarning)
 
 from .core import signals, audio, CONFIG_FILE
-from .utils import NativeKeyboardHook, is_system_light_theme
-from .gui import ThemeListener, DeviceSelectionDialog, BeepSettingsDialog, HotkeySettingsDialog
+from .utils import NativeKeyboardHook, is_system_light_theme, get_idle_duration
+from .gui import ThemeListener, DeviceSelectionDialog, SettingsDialog
+from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -60,7 +61,7 @@ def main():
     kb_hook.set_target_vk(audio.hotkey_config['vk'])
     kb_hook.install()
     
-    # Menu
+    # Menu Functions
     def show_select_dialog():
         dialog = DeviceSelectionDialog()
         if dialog.exec():
@@ -71,13 +72,8 @@ def main():
                     tray.showMessage("Error", "Failed to connect.", QSystemTrayIcon.Warning, 2000)
         gc.collect()
 
-    def show_beep_settings():
-        dialog = BeepSettingsDialog(audio)
-        dialog.exec()
-        gc.collect()
-
-    def show_hotkey_settings():
-        dialog = HotkeySettingsDialog(audio, kb_hook)
+    def show_settings_dialog():
+        dialog = SettingsDialog(audio, kb_hook)
         dialog.exec()
         gc.collect()
 
@@ -100,15 +96,10 @@ def main():
     action_beep.triggered.connect(toggle_beep_setting)
     menu.addAction(action_beep)
     
-    # Beep Settings
-    action_beep_settings = QAction("Beep Settings...")
-    action_beep_settings.triggered.connect(show_beep_settings)
-    menu.addAction(action_beep_settings)
-    
-    # Hotkey Settings
-    action_hotkey = QAction("Hotkey Settings...")
-    action_hotkey.triggered.connect(show_hotkey_settings)
-    menu.addAction(action_hotkey)
+    # Settings
+    action_settings = QAction("Settings")
+    action_settings.triggered.connect(show_settings_dialog)
+    menu.addAction(action_settings)
     
     menu.addSeparator()
     
@@ -135,8 +126,28 @@ def main():
     signals.toggle_mute.connect(audio.toggle_mute)
     signals.exit_app.connect(app.quit)
 
+    # AFK Timer
+    afk_timer = QTimer()
+    def check_afk():
+        if not audio.afk_config.get('enabled', False):
+            return
+        
+        idle_time = get_idle_duration()
+        timeout = audio.afk_config.get('timeout', 60)
+        
+        if idle_time >= timeout:
+            # Only mute if not already muted
+            if not audio.get_mute_state():
+                print(f"AFK Detected ({idle_time:.1f}s). Muting...")
+                audio.toggle_mute()
+                # Optional: Show notification?
+                # tray.showMessage("AFK Mute", "Microphone muted due to inactivity.", QSystemTrayIcon.Information, 2000)
+
+    afk_timer.timeout.connect(check_afk)
+    afk_timer.start(1000) # Check every 1 second
+
     print(f"\n{'='*50}")
-    print(f"  Microphone Mute Toggle v{VERSION} (Final)")
+    print(f"  Microphone Mute Toggle v{VERSION} (Refactored)")
     print(f"  Mode: Non-Admin | Native Hooks | Fully Configurable")
     print(f"{'='*50}")
     print("✓ Ready! Use tray icon to configure.")

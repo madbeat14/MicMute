@@ -1,6 +1,6 @@
 import ctypes
 import winreg
-from ctypes import wintypes, POINTER, c_void_p, c_int, c_long, c_longlong
+from ctypes import wintypes, POINTER, c_void_p, c_int, c_long, c_longlong, Structure, sizeof
 from PySide6.QtCore import QTimer, QObject, Signal
 
 # --- WIN32 CONSTANTS & TYPES ---
@@ -21,6 +21,12 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
         ("dwExtraInfo", ctypes.c_ulong)
     ]
 
+class LASTINPUTINFO(Structure):
+    _fields_ = [
+        ('cbSize', wintypes.UINT),
+        ('dwTime', wintypes.DWORD),
+    ]
+
 # C types for hook
 LRESULT = c_longlong if ctypes.sizeof(c_void_p) == 8 else c_long
 HOOKPROC = ctypes.CFUNCTYPE(LRESULT, c_int, wintypes.WPARAM, POINTER(KBDLLHOOKSTRUCT))
@@ -36,6 +42,15 @@ def is_system_light_theme():
         return value == 1
     except Exception:
         return False
+
+def get_idle_duration():
+    """Returns the number of seconds the system has been idle."""
+    lastInputInfo = LASTINPUTINFO()
+    lastInputInfo.cbSize = sizeof(lastInputInfo)
+    if user32.GetLastInputInfo(ctypes.byref(lastInputInfo)):
+        millis = kernel32.GetTickCount() - lastInputInfo.dwTime
+        return millis / 1000.0
+    return 0.0
 
 # --- NATIVE KEYBOARD HOOK ---
 class NativeKeyboardHook:

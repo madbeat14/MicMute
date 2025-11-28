@@ -2,7 +2,8 @@ import ctypes
 import gc
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, 
                              QTableWidgetItem, QHeaderView, QLabel, QMessageBox, QWidget,
-                             QGroupBox, QFormLayout, QSpinBox, QComboBox, QSystemTrayIcon)
+                             QGroupBox, QFormLayout, QSpinBox, QComboBox, QSystemTrayIcon,
+                             QTabWidget, QCheckBox)
 from PySide6.QtCore import Qt, QObject, Signal
 from PySide6.QtGui import QColor
 from pycaw.pycaw import AudioUtilities
@@ -39,115 +40,95 @@ class ThemeListener(QWidget):
             signals.theme_changed.emit()
         return super().nativeEvent(eventType, message)
 
-# --- HOTKEY SETTINGS DIALOG ---
-class HotkeySettingsDialog(QDialog):
-    def __init__(self, audio_controller, hook, parent=None):
+# --- WIDGETS ---
+
+class DeviceSelectionWidget(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.audio = audio_controller
-        self.hook = hook
-        self.setWindowTitle("Hotkey Settings")
-        self.resize(400, 200)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-        
         layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Select the microphone to control:"))
         
-        # Current Hotkey Display
-        self.current_vk = self.audio.hotkey_config['vk']
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Device Name", "Status", "Mute State"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
+        layout.addWidget(self.table)
         
-        # Dropdown
-        layout.addWidget(QLabel("Select Hotkey from List:"))
-        self.combo = QComboBox()
-        self.vk_items = []
-        
-        # Sort by name for easier finding
-        sorted_vks = sorted(VK_MAP.items(), key=lambda item: item[1])
-        
-        for vk, name in sorted_vks:
-            self.combo.addItem(f"{name}", vk)
-            self.vk_items.append(vk)
-            
-        # Add current custom if not in map
-        if self.current_vk not in VK_MAP:
-            self.combo.addItem(f"Custom Key ({self.current_vk})", self.current_vk)
-            self.vk_items.append(self.current_vk)
-            
-        # Select current
-        index = self.combo.findData(self.current_vk)
-        if index >= 0:
-            self.combo.setCurrentIndex(index)
-            
-        self.combo.currentIndexChanged.connect(self.on_combo_change)
-        layout.addWidget(self.combo)
-        
-        layout.addSpacing(10)
-        
-        # Capture Button
-        layout.addWidget(QLabel("Or press a key to set:"))
-        self.capture_btn = QPushButton("Click to Set Hotkey")
-        self.capture_btn.clicked.connect(self.start_capture)
-        layout.addWidget(self.capture_btn)
-        
-        layout.addStretch()
-        
-        # Buttons
         btn_layout = QHBoxLayout()
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self.save_settings)
-        save_btn.setDefault(True)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        
+        self.refresh_btn = QPushButton("Refresh List")
+        self.refresh_btn.clicked.connect(self.refresh_devices)
+        btn_layout.addWidget(self.refresh_btn)
         btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(save_btn)
         layout.addLayout(btn_layout)
         
-        signals.key_recorded.connect(self.on_key_recorded)
+        self.devices_map = {}
+        self.refresh_devices()
 
-    def on_combo_change(self, index):
-        self.current_vk = self.combo.itemData(index)
-
-    def start_capture(self):
-        self.capture_btn.setText("Press any key...")
-        self.capture_btn.setEnabled(False)
-        self.hook.start_recording()
-
-    def on_key_recorded(self, vk):
-        self.hook.stop_recording()
-        self.current_vk = vk
-        self.capture_btn.setText("Click to Set Hotkey")
-        self.capture_btn.setEnabled(True)
-        
-        # Update Combo
-        name = VK_MAP.get(vk, f"Key {vk}")
-        index = self.combo.findData(vk)
-        if index == -1:
-            self.combo.addItem(name, vk)
-            index = self.combo.count() - 1
-        self.combo.setCurrentIndex(index)
-
-    def save_settings(self):
-        name = VK_MAP.get(self.current_vk, f"Key {self.current_vk}")
-        self.audio.update_hotkey_config({'vk': self.current_vk, 'name': name})
-        self.hook.set_target_vk(self.current_vk)
-        self.accept()
-        
-    def closeEvent(self, event):
-        self.hook.stop_recording()
+    def refresh_devices(self):
+        self.table.setRowCount(0)
+        self.devices_map.clear()
+        enumerator = None
+        collection = None
         try:
-            signals.key_recorded.disconnect(self.on_key_recorded)
-        except: pass
-        super().closeEvent(event)
+            enumerator = AudioUtilities.GetDeviceEnumerator()
+            try:
+                default_dev = enumerator.GetDefaultAudioEndpoint(1, 0)
+                default_id = default_dev.GetId()
+            except: default_id = None
+            collection = enumerator.EnumAudioEndpoints(1, 1)
+            count = collection.GetCount()
+            all_devices = AudioUtilities.GetAllDevices()
+            capture_ids = set()
+            for i in range(count):
+                dev = collection.Item(i)
+                capture_ids.add(dev.GetId())
+            
+            row = 0
+            for dev in all_devices:
+                if dev.id not in capture_ids: continue
+                self.table.insertRow(row)
+                name_item = QTableWidgetItem(dev.FriendlyName)
+                self.table.setItem(row, 0, name_item)
+                status_str = "Default" if dev.id == default_id else ""
+                status_item = QTableWidgetItem(status_str)
+                if dev.id == default_id:
+                    status_item.setForeground(QColor("green"))
+                    name_item.setForeground(QColor("green"))
+                self.table.setItem(row, 1, status_item)
+                try:
+                    is_muted = dev.EndpointVolume.GetMute()
+                    mute_str = "Muted" if is_muted else "Active"
+                except: mute_str = "Unknown"
+                self.table.setItem(row, 2, QTableWidgetItem(mute_str))
+                self.devices_map[row] = dev.id
+                
+                # Highlight current selection
+                if audio.device_id and dev.id == audio.device_id:
+                     self.table.selectRow(row)
+                
+                row += 1
+        except Exception as e:
+            # Only show error if visible to avoid spamming if hidden
+            if self.isVisible():
+                QMessageBox.critical(self, "Error", f"Failed to list devices: {e}")
+        finally:
+            if collection: del collection
+            if enumerator: del enumerator
+            gc.collect()
 
-# --- BEEP SETTINGS DIALOG ---
-class BeepSettingsDialog(QDialog):
+    def get_selected_device_id(self):
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            return None
+        row = selected_rows[0].row()
+        return self.devices_map.get(row)
+
+class BeepSettingsWidget(QWidget):
     def __init__(self, audio_controller, parent=None):
         super().__init__(parent)
         self.audio = audio_controller
-        self.setWindowTitle("Beep Settings")
-        self.resize(400, 500)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-        
         layout = QVBoxLayout(self)
         
         # Mute Settings
@@ -205,19 +186,6 @@ class BeepSettingsDialog(QDialog):
         
         unmute_group.setLayout(unmute_layout)
         layout.addWidget(unmute_group)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self.save_settings)
-        save_btn.setDefault(True)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(save_btn)
-        layout.addLayout(btn_layout)
 
     def test_mute(self):
         freq = self.mute_freq.value()
@@ -233,8 +201,8 @@ class BeepSettingsDialog(QDialog):
         for _ in range(count):
             Beep(freq, dur)
 
-    def save_settings(self):
-        new_config = {
+    def get_config(self):
+        return {
             'mute': {
                 'freq': self.mute_freq.value(),
                 'duration': self.mute_dur.value(),
@@ -246,96 +214,218 @@ class BeepSettingsDialog(QDialog):
                 'count': self.unmute_count.value()
             }
         }
-        self.audio.update_beep_config(new_config)
-        self.accept()
 
-# --- DEVICE SELECTION DIALOG ---
+class HotkeySettingsWidget(QWidget):
+    def __init__(self, audio_controller, hook, parent=None):
+        super().__init__(parent)
+        self.audio = audio_controller
+        self.hook = hook
+        
+        layout = QVBoxLayout(self)
+        
+        # Current Hotkey Display
+        self.current_vk = self.audio.hotkey_config['vk']
+        
+        # Dropdown
+        layout.addWidget(QLabel("Select Hotkey from List:"))
+        self.combo = QComboBox()
+        self.vk_items = []
+        
+        # Sort by name for easier finding
+        sorted_vks = sorted(VK_MAP.items(), key=lambda item: item[1])
+        
+        for vk, name in sorted_vks:
+            self.combo.addItem(f"{name}", vk)
+            self.vk_items.append(vk)
+            
+        # Add current custom if not in map
+        if self.current_vk not in VK_MAP:
+            self.combo.addItem(f"Custom Key ({self.current_vk})", self.current_vk)
+            self.vk_items.append(self.current_vk)
+            
+        # Select current
+        index = self.combo.findData(self.current_vk)
+        if index >= 0:
+            self.combo.setCurrentIndex(index)
+            
+        self.combo.currentIndexChanged.connect(self.on_combo_change)
+        layout.addWidget(self.combo)
+        
+        layout.addSpacing(10)
+        
+        # Capture Button
+        layout.addWidget(QLabel("Or press a key to set:"))
+        self.capture_btn = QPushButton("Click to Set Hotkey")
+        self.capture_btn.clicked.connect(self.start_capture)
+        layout.addWidget(self.capture_btn)
+        
+        layout.addStretch()
+        
+        signals.key_recorded.connect(self.on_key_recorded)
+
+    def on_combo_change(self, index):
+        self.current_vk = self.combo.itemData(index)
+
+    def start_capture(self):
+        self.capture_btn.setText("Press any key...")
+        self.capture_btn.setEnabled(False)
+        self.hook.start_recording()
+
+    def on_key_recorded(self, vk):
+        self.hook.stop_recording()
+        self.current_vk = vk
+        self.capture_btn.setText("Click to Set Hotkey")
+        self.capture_btn.setEnabled(True)
+        
+        # Update Combo
+        name = VK_MAP.get(vk, f"Key {vk}")
+        index = self.combo.findData(vk)
+        if index == -1:
+            self.combo.addItem(name, vk)
+            index = self.combo.count() - 1
+        self.combo.setCurrentIndex(index)
+
+    def get_config(self):
+        name = VK_MAP.get(self.current_vk, f"Key {self.current_vk}")
+        return {'vk': self.current_vk, 'name': name}
+    
+    def cleanup(self):
+        try:
+            signals.key_recorded.disconnect(self.on_key_recorded)
+        except: pass
+
+class AfkSettingsWidget(QWidget):
+    def __init__(self, audio_controller, parent=None):
+        super().__init__(parent)
+        self.audio = audio_controller
+        layout = QFormLayout(self)
+        
+        self.enabled_cb = QCheckBox("Enable AFK Timeout")
+        self.enabled_cb.setChecked(self.audio.afk_config.get('enabled', False))
+        
+        self.timeout_spin = QSpinBox()
+        self.timeout_spin.setRange(10, 3600) # 10s to 1 hour
+        self.timeout_spin.setValue(self.audio.afk_config.get('timeout', 60))
+        self.timeout_spin.setSuffix(" seconds")
+        
+        layout.addRow(self.enabled_cb)
+        layout.addRow("Timeout:", self.timeout_spin)
+        
+        # Enable/Disable spinbox based on checkbox
+        self.timeout_spin.setEnabled(self.enabled_cb.isChecked())
+        self.enabled_cb.toggled.connect(self.timeout_spin.setEnabled)
+
+    def get_config(self):
+        return {
+            'enabled': self.enabled_cb.isChecked(),
+            'timeout': self.timeout_spin.value()
+        }
+
+# --- MAIN SETTINGS DIALOG ---
+class SettingsDialog(QDialog):
+    def __init__(self, audio_controller, hook, parent=None):
+        super().__init__(parent)
+        self.audio = audio_controller
+        self.hook = hook
+        self.setWindowTitle("MicMute Settings")
+        self.resize(500, 600)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+        
+        layout = QVBoxLayout(self)
+        
+        self.tabs = QTabWidget()
+        
+        # Tab 1: General (Device Selection)
+        self.device_widget = DeviceSelectionWidget()
+        self.tabs.addTab(self.device_widget, "General")
+        
+        # Tab 2: Audio (Beeps)
+        self.beep_widget = BeepSettingsWidget(self.audio)
+        self.tabs.addTab(self.beep_widget, "Audio")
+        
+        # Tab 3: Misc (Hotkey + AFK)
+        self.misc_tab = QWidget()
+        misc_layout = QVBoxLayout(self.misc_tab)
+        
+        misc_layout.addWidget(QLabel("<b>Hotkey Settings</b>"))
+        self.hotkey_widget = HotkeySettingsWidget(self.audio, self.hook)
+        misc_layout.addWidget(self.hotkey_widget)
+        
+        misc_layout.addSpacing(10)
+        misc_layout.addWidget(QLabel("<b>AFK Timeout</b>"))
+        self.afk_widget = AfkSettingsWidget(self.audio)
+        misc_layout.addWidget(self.afk_widget)
+        
+        misc_layout.addStretch()
+        self.tabs.addTab(self.misc_tab, "Misc")
+        
+        layout.addWidget(self.tabs)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self.save_settings)
+        save_btn.setDefault(True)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        layout.addLayout(btn_layout)
+
+    def save_settings(self):
+        # 1. Device
+        new_dev_id = self.device_widget.get_selected_device_id()
+        if new_dev_id:
+            self.audio.set_device_by_id(new_dev_id)
+        
+        # 2. Beeps
+        self.audio.update_beep_config(self.beep_widget.get_config())
+        
+        # 3. Hotkey
+        new_hotkey = self.hotkey_widget.get_config()
+        self.audio.update_hotkey_config(new_hotkey)
+        self.hook.set_target_vk(new_hotkey['vk'])
+        
+        # 4. AFK
+        self.audio.update_afk_config(self.afk_widget.get_config())
+        
+        self.accept()
+        
+    def closeEvent(self, event):
+        self.hotkey_widget.cleanup()
+        super().closeEvent(event)
+
+# --- LEGACY WRAPPERS (For backwards compatibility / Tray Actions) ---
 class DeviceSelectionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select Microphone")
         self.resize(600, 400)
         self.setAttribute(Qt.WA_DeleteOnClose)
-        self.selected_device_id = None
         
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Select the microphone you want to control with hotkeys:"))
-        
-        self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Device Name", "Status", "Mute State"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SingleSelection)
-        layout.addWidget(self.table)
+        self.widget = DeviceSelectionWidget()
+        layout.addWidget(self.widget)
         
         btn_layout = QHBoxLayout()
-        self.refresh_btn = QPushButton("Refresh")
-        self.refresh_btn.clicked.connect(self.refresh_devices)
-        btn_layout.addWidget(self.refresh_btn)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        select_btn = QPushButton("Select")
+        select_btn.clicked.connect(self.accept_selection)
+        select_btn.setDefault(True)
+        
         btn_layout.addStretch()
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(self.cancel_btn)
-        self.select_btn = QPushButton("Select")
-        self.select_btn.clicked.connect(self.accept_selection)
-        self.select_btn.setDefault(True)
-        btn_layout.addWidget(self.select_btn)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(select_btn)
         layout.addLayout(btn_layout)
         
-        self.devices_map = {}
-        self.refresh_devices()
-
-    def refresh_devices(self):
-        self.table.setRowCount(0)
-        self.devices_map.clear()
-        enumerator = None
-        collection = None
-        try:
-            enumerator = AudioUtilities.GetDeviceEnumerator()
-            try:
-                default_dev = enumerator.GetDefaultAudioEndpoint(1, 0)
-                default_id = default_dev.GetId()
-            except: default_id = None
-            collection = enumerator.EnumAudioEndpoints(1, 1)
-            count = collection.GetCount()
-            all_devices = AudioUtilities.GetAllDevices()
-            capture_ids = set()
-            for i in range(count):
-                dev = collection.Item(i)
-                capture_ids.add(dev.GetId())
-            
-            row = 0
-            for dev in all_devices:
-                if dev.id not in capture_ids: continue
-                self.table.insertRow(row)
-                name_item = QTableWidgetItem(dev.FriendlyName)
-                self.table.setItem(row, 0, name_item)
-                status_str = "Default" if dev.id == default_id else ""
-                status_item = QTableWidgetItem(status_str)
-                if dev.id == default_id:
-                    status_item.setForeground(QColor("green"))
-                    name_item.setForeground(QColor("green"))
-                self.table.setItem(row, 1, status_item)
-                try:
-                    is_muted = dev.EndpointVolume.GetMute()
-                    mute_str = "Muted" if is_muted else "Active"
-                except: mute_str = "Unknown"
-                self.table.setItem(row, 2, QTableWidgetItem(mute_str))
-                self.devices_map[row] = dev.id
-                row += 1
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to list devices: {e}")
-        finally:
-            if collection: del collection
-            if enumerator: del enumerator
-            gc.collect()
+        self.selected_device_id = None
 
     def accept_selection(self):
-        selected_rows = self.table.selectionModel().selectedRows()
-        if not selected_rows:
+        self.selected_device_id = self.widget.get_selected_device_id()
+        if not self.selected_device_id:
             QMessageBox.warning(self, "No Selection", "Please select a device.")
             return
-        row = selected_rows[0].row()
-        self.selected_device_id = self.devices_map.get(row)
         self.accept()
