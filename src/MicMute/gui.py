@@ -405,6 +405,60 @@ class AfkSettingsWidget(QWidget):
             'timeout': self.timeout_spin.value()
         }
 
+class OsdSettingsWidget(QWidget):
+    def __init__(self, audio_controller, parent=None):
+        super().__init__(parent)
+        self.audio = audio_controller
+        layout = QFormLayout(self)
+        
+        self.enabled_cb = QCheckBox("Enable On-Screen Display (OSD)")
+        self.enabled_cb.setChecked(self.audio.osd_config.get('enabled', False))
+        
+        # Size Control
+        self.size_spin = QSpinBox()
+        self.size_spin.setRange(50, 500)
+        self.size_spin.setSingleStep(10)
+        self.size_spin.setValue(self.audio.osd_config.get('size', 150))
+        self.size_spin.setSuffix(" px")
+        
+        # Duration Control
+        self.duration_spin = QSpinBox()
+        self.duration_spin.setRange(500, 5000)
+        self.duration_spin.setSingleStep(100)
+        self.duration_spin.setValue(self.audio.osd_config.get('duration', 1500))
+        self.duration_spin.setSuffix(" ms")
+        
+        # Position Control (9-Point)
+        self.position_combo = QComboBox()
+        positions = [
+            "Top-Left", "Top-Center", "Top-Right",
+            "Middle-Left", "Center", "Middle-Right",
+            "Bottom-Left", "Bottom-Center", "Bottom-Right"
+        ]
+        self.position_combo.addItems(positions)
+        self.position_combo.setCurrentText(self.audio.osd_config.get('position', 'Bottom-Center'))
+        
+        layout.addRow(self.enabled_cb)
+        layout.addRow("Size:", self.size_spin)
+        layout.addRow("Display Duration:", self.duration_spin)
+        layout.addRow("Position:", self.position_combo)
+        
+        # Enable/Disable controls based on checkbox
+        self.size_spin.setEnabled(self.enabled_cb.isChecked())
+        self.duration_spin.setEnabled(self.enabled_cb.isChecked())
+        self.position_combo.setEnabled(self.enabled_cb.isChecked())
+        self.enabled_cb.toggled.connect(self.size_spin.setEnabled)
+        self.enabled_cb.toggled.connect(self.duration_spin.setEnabled)
+        self.enabled_cb.toggled.connect(self.position_combo.setEnabled)
+
+    def get_config(self):
+        return {
+            'enabled': self.enabled_cb.isChecked(),
+            'size': self.size_spin.value(),
+            'duration': self.duration_spin.value(),
+            'position': self.position_combo.currentText()
+        }
+
 # --- MAIN SETTINGS DIALOG ---
 class SettingsDialog(QDialog):
     def __init__(self, audio_controller, hook, parent=None):
@@ -412,7 +466,7 @@ class SettingsDialog(QDialog):
         self.audio = audio_controller
         self.hook = hook
         self.setWindowTitle("MicMute Settings")
-        self.resize(500, 600)
+        self.resize(500, 650)
         self.setAttribute(Qt.WA_DeleteOnClose)
         
         layout = QVBoxLayout(self)
@@ -427,13 +481,18 @@ class SettingsDialog(QDialog):
         self.beep_widget = BeepSettingsWidget(self.audio)
         self.tabs.addTab(self.beep_widget, "Audio")
         
-        # Tab 3: Misc (Hotkey + AFK)
+        # Tab 3: Misc (Hotkey + AFK + OSD)
         self.misc_tab = QWidget()
         misc_layout = QVBoxLayout(self.misc_tab)
         
         misc_layout.addWidget(QLabel("<b>Hotkey Settings</b>"))
         self.hotkey_widget = HotkeySettingsWidget(self.audio, self.hook)
         misc_layout.addWidget(self.hotkey_widget)
+        
+        misc_layout.addSpacing(10)
+        misc_layout.addWidget(QLabel("<b>On-Screen Feedback</b>"))
+        self.osd_widget = OsdSettingsWidget(self.audio)
+        misc_layout.addWidget(self.osd_widget)
         
         misc_layout.addSpacing(10)
         misc_layout.addWidget(QLabel("<b>AFK Timeout</b>"))
@@ -474,6 +533,9 @@ class SettingsDialog(QDialog):
         
         # 4. AFK
         self.audio.update_afk_config(self.afk_widget.get_config())
+        
+        # 5. OSD
+        self.audio.update_osd_config(self.osd_widget.get_config())
         
         self.accept()
         

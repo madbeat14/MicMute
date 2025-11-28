@@ -11,10 +11,11 @@ warnings.simplefilter("ignore", UserWarning)
 from .core import signals, audio, CONFIG_FILE
 from .utils import NativeKeyboardHook, is_system_light_theme, get_idle_duration
 from .gui import ThemeListener, DeviceSelectionDialog, SettingsDialog
+from .overlay import MetroOSD
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "1.9.0"
+VERSION = "1.10.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -48,6 +49,11 @@ def main():
     current_mute_state = audio.get_mute_state()
     is_light_theme = is_system_light_theme()
     
+    # OSD Initialization
+    # We use white icons for the OSD as it has a dark background
+    osd = MetroOSD(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
+    osd.set_config(audio.osd_config)
+    
     def get_current_icon(muted, light_theme):
         if light_theme: return icon_black_muted if muted else icon_black_unmuted
         else: return icon_white_muted if muted else icon_white_unmuted
@@ -74,7 +80,9 @@ def main():
 
     def show_settings_dialog():
         dialog = SettingsDialog(audio, kb_hook)
-        dialog.exec()
+        if dialog.exec():
+            # Update OSD config after settings close
+            osd.set_config(audio.osd_config)
         gc.collect()
 
     def toggle_beep_setting(checked):
@@ -120,6 +128,10 @@ def main():
             is_light_theme = new_theme
             tray.setIcon(get_current_icon(current_mute_state, is_light_theme))
             tray.setToolTip(f"Mic Mute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
+        
+        # Trigger OSD if muted state changed
+        if is_muted is not None and audio.osd_config.get('enabled', False):
+            osd.show_osd(is_muted)
 
     signals.update_icon.connect(lambda m: update_tray_state(is_muted=m))
     signals.theme_changed.connect(lambda: update_tray_state(is_muted=None))

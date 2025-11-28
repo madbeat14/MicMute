@@ -38,6 +38,7 @@ class AudioController:
             'unmute': {'vk': 0, 'name': 'None'}
         }
         self.afk_config = {'enabled': False, 'timeout': 60}
+        self.osd_config = {'enabled': False, 'duration': 1500, 'position': 'Bottom-Center', 'size': 150}
         self.BEEP_ERROR = (200, 500)
         self.load_config()
 
@@ -62,6 +63,9 @@ class AudioController:
 
                     saved_afk = data.get('afk')
                     if saved_afk: self.afk_config.update(saved_afk)
+
+                    saved_osd = data.get('osd')
+                    if saved_osd: self.osd_config.update(saved_osd)
         except: pass
 
     def save_config(self):
@@ -72,7 +76,8 @@ class AudioController:
                     'beep_enabled': self.beep_enabled,
                     'beep_config': self.beep_config,
                     'hotkey': self.hotkey_config,
-                    'afk': self.afk_config
+                    'afk': self.afk_config,
+                    'osd': self.osd_config
                 }, f)
         except: pass
 
@@ -90,6 +95,10 @@ class AudioController:
 
     def update_afk_config(self, new_config):
         self.afk_config = new_config
+        self.save_config()
+
+    def update_osd_config(self, new_config):
+        self.osd_config = new_config
         self.save_config()
 
     def find_device(self):
