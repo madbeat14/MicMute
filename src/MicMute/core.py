@@ -13,6 +13,7 @@ class MuteSignals(QObject):
     update_icon = Signal(bool)
     theme_changed = Signal()
     toggle_mute = Signal() # Signal to trigger mute from hook
+    set_mute = Signal(bool) # Signal to trigger explicit mute state from hook
     key_recorded = Signal(int) # Signal when a key is captured in recording mode
     exit_app = Signal()
 
@@ -29,7 +30,13 @@ class AudioController:
             'mute': {'freq': 650, 'duration': 180, 'count': 2},
             'unmute': {'freq': 700, 'duration': 200, 'count': 1}
         }
-        self.hotkey_config = {'vk': 0xB3, 'name': 'Media Play/Pause'}
+        # New Hotkey Config Structure
+        self.hotkey_config = {
+            'mode': 'toggle', # 'toggle' or 'separate'
+            'toggle': {'vk': 0xB3, 'name': 'Media Play/Pause'},
+            'mute': {'vk': 0, 'name': 'None'},
+            'unmute': {'vk': 0, 'name': 'None'}
+        }
         self.afk_config = {'enabled': False, 'timeout': 60}
         self.BEEP_ERROR = (200, 500)
         self.load_config()
@@ -46,7 +53,12 @@ class AudioController:
                     if saved_beeps: self.beep_config.update(saved_beeps)
                     
                     saved_hotkey = data.get('hotkey')
-                    if saved_hotkey: self.hotkey_config = saved_hotkey
+                    if saved_hotkey:
+                        # Migration from old format {'vk': ..., 'name': ...}
+                        if 'vk' in saved_hotkey:
+                            self.hotkey_config['toggle'] = saved_hotkey
+                        else:
+                            self.hotkey_config.update(saved_hotkey)
 
                     saved_afk = data.get('afk')
                     if saved_afk: self.afk_config.update(saved_afk)
@@ -121,8 +133,18 @@ class AudioController:
         if not self.volume: return
         try:
             current = self.volume.GetMute()
-            self.volume.SetMute(not current, None)
-            new_state = self.volume.GetMute()
+            self.set_mute_state(not current)
+        except Exception:
+            if self.beep_enabled:
+                Beep(*self.BEEP_ERROR)
+
+    def set_mute_state(self, new_state):
+        if not self.volume: return
+        try:
+            current = self.volume.GetMute()
+            if current == new_state: return # No change needed
+
+            self.volume.SetMute(new_state, None)
             
             if self.beep_enabled:
                 cfg = self.beep_config['mute'] if new_state else self.beep_config['unmute']

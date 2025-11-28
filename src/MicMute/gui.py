@@ -3,7 +3,7 @@ import gc
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, 
                              QTableWidgetItem, QHeaderView, QLabel, QMessageBox, QWidget,
                              QGroupBox, QFormLayout, QSpinBox, QComboBox, QSystemTrayIcon,
-                             QTabWidget, QCheckBox)
+                             QTabWidget, QCheckBox, QRadioButton, QButtonGroup, QStackedWidget)
 from PySide6.QtCore import Qt, QObject, Signal
 from PySide6.QtGui import QColor
 from pycaw.pycaw import AudioUtilities
@@ -215,19 +215,17 @@ class BeepSettingsWidget(QWidget):
             }
         }
 
-class HotkeySettingsWidget(QWidget):
-    def __init__(self, audio_controller, hook, parent=None):
+class SingleHotkeyInputWidget(QWidget):
+    def __init__(self, label_text, initial_vk, hook, parent=None):
         super().__init__(parent)
-        self.audio = audio_controller
         self.hook = hook
+        self.current_vk = initial_vk
         
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        # Current Hotkey Display
-        self.current_vk = self.audio.hotkey_config['vk']
+        layout.addWidget(QLabel(label_text))
         
-        # Dropdown
-        layout.addWidget(QLabel("Select Hotkey from List:"))
         self.combo = QComboBox()
         self.vk_items = []
         
@@ -239,7 +237,7 @@ class HotkeySettingsWidget(QWidget):
             self.vk_items.append(vk)
             
         # Add current custom if not in map
-        if self.current_vk not in VK_MAP:
+        if self.current_vk not in VK_MAP and self.current_vk != 0:
             self.combo.addItem(f"Custom Key ({self.current_vk})", self.current_vk)
             self.vk_items.append(self.current_vk)
             
@@ -247,19 +245,14 @@ class HotkeySettingsWidget(QWidget):
         index = self.combo.findData(self.current_vk)
         if index >= 0:
             self.combo.setCurrentIndex(index)
-            
+        
         self.combo.currentIndexChanged.connect(self.on_combo_change)
         layout.addWidget(self.combo)
         
-        layout.addSpacing(10)
-        
-        # Capture Button
-        layout.addWidget(QLabel("Or press a key to set:"))
-        self.capture_btn = QPushButton("Click to Set Hotkey")
+        self.capture_btn = QPushButton("Set")
+        self.capture_btn.setFixedWidth(50)
         self.capture_btn.clicked.connect(self.start_capture)
         layout.addWidget(self.capture_btn)
-        
-        layout.addStretch()
         
         signals.key_recorded.connect(self.on_key_recorded)
 
@@ -267,14 +260,22 @@ class HotkeySettingsWidget(QWidget):
         self.current_vk = self.combo.itemData(index)
 
     def start_capture(self):
-        self.capture_btn.setText("Press any key...")
+        self.capture_btn.setText("...")
         self.capture_btn.setEnabled(False)
+        # We need a way to know WHICH widget requested capture.
+        # For simplicity, we'll set a flag on the parent or use a shared state if needed.
+        # But signals are global. We need to check if WE are the active capturer.
+        self.is_capturing = True
         self.hook.start_recording()
 
     def on_key_recorded(self, vk):
+        if not getattr(self, 'is_capturing', False):
+            return
+            
         self.hook.stop_recording()
+        self.is_capturing = False
         self.current_vk = vk
-        self.capture_btn.setText("Click to Set Hotkey")
+        self.capture_btn.setText("Set")
         self.capture_btn.setEnabled(True)
         
         # Update Combo
@@ -293,6 +294,89 @@ class HotkeySettingsWidget(QWidget):
         try:
             signals.key_recorded.disconnect(self.on_key_recorded)
         except: pass
+
+class HotkeySettingsWidget(QWidget):
+    def __init__(self, audio_controller, hook, parent=None):
+        super().__init__(parent)
+        self.audio = audio_controller
+        self.hook = hook
+        
+        layout = QVBoxLayout(self)
+        
+        # Mode Selection
+        mode_group = QGroupBox("Hotkey Mode")
+        mode_layout = QHBoxLayout()
+        self.mode_toggle = QRadioButton("Single Toggle Key")
+        self.mode_separate = QRadioButton("Separate Mute/Unmute Keys")
+        
+        self.mode_group_btn = QButtonGroup()
+        self.mode_group_btn.addButton(self.mode_toggle, 0)
+        self.mode_group_btn.addButton(self.mode_separate, 1)
+        
+        mode_layout.addWidget(self.mode_toggle)
+        mode_layout.addWidget(self.mode_separate)
+        mode_group.setLayout(mode_layout)
+        layout.addWidget(mode_group)
+        
+        # Stacked Widget for Inputs
+        self.stack = QStackedWidget()
+        
+        # Page 1: Toggle
+        self.page_toggle = QWidget()
+        toggle_layout = QVBoxLayout(self.page_toggle)
+        self.input_toggle = SingleHotkeyInputWidget(
+            "Toggle Hotkey:", 
+            self.audio.hotkey_config.get('toggle', {}).get('vk', 0xB3), 
+            self.hook
+        )
+        toggle_layout.addWidget(self.input_toggle)
+        toggle_layout.addStretch()
+        self.stack.addWidget(self.page_toggle)
+        
+        # Page 2: Separate
+        self.page_separate = QWidget()
+        separate_layout = QVBoxLayout(self.page_separate)
+        self.input_mute = SingleHotkeyInputWidget(
+            "Mute Hotkey:", 
+            self.audio.hotkey_config.get('mute', {}).get('vk', 0), 
+            self.hook
+        )
+        self.input_unmute = SingleHotkeyInputWidget(
+            "Unmute Hotkey:", 
+            self.audio.hotkey_config.get('unmute', {}).get('vk', 0), 
+            self.hook
+        )
+        separate_layout.addWidget(self.input_mute)
+        separate_layout.addWidget(self.input_unmute)
+        separate_layout.addStretch()
+        self.stack.addWidget(self.page_separate)
+        
+        layout.addWidget(self.stack)
+        
+        # Set Initial State
+        current_mode = self.audio.hotkey_config.get('mode', 'toggle')
+        if current_mode == 'separate':
+            self.mode_separate.setChecked(True)
+            self.stack.setCurrentIndex(1)
+        else:
+            self.mode_toggle.setChecked(True)
+            self.stack.setCurrentIndex(0)
+            
+        self.mode_group_btn.idToggled.connect(self.stack.setCurrentIndex)
+
+    def get_config(self):
+        mode = 'separate' if self.mode_separate.isChecked() else 'toggle'
+        return {
+            'mode': mode,
+            'toggle': self.input_toggle.get_config(),
+            'mute': self.input_mute.get_config(),
+            'unmute': self.input_unmute.get_config()
+        }
+    
+    def cleanup(self):
+        self.input_toggle.cleanup()
+        self.input_mute.cleanup()
+        self.input_unmute.cleanup()
 
 class AfkSettingsWidget(QWidget):
     def __init__(self, audio_controller, parent=None):
@@ -386,7 +470,7 @@ class SettingsDialog(QDialog):
         # 3. Hotkey
         new_hotkey = self.hotkey_widget.get_config()
         self.audio.update_hotkey_config(new_hotkey)
-        self.hook.set_target_vk(new_hotkey['vk'])
+        self.hook.update_config(new_hotkey)
         
         # 4. AFK
         self.audio.update_afk_config(self.afk_widget.get_config())

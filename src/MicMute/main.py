@@ -14,7 +14,7 @@ from .gui import ThemeListener, DeviceSelectionDialog, SettingsDialog
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -58,7 +58,7 @@ def main():
     # Listeners
     theme_listener = ThemeListener()
     kb_hook = NativeKeyboardHook(signals)
-    kb_hook.set_target_vk(audio.hotkey_config['vk'])
+    kb_hook.update_config(audio.hotkey_config)
     kb_hook.install()
     
     # Menu Functions
@@ -124,6 +124,7 @@ def main():
     signals.update_icon.connect(lambda m: update_tray_state(is_muted=m))
     signals.theme_changed.connect(lambda: update_tray_state(is_muted=None))
     signals.toggle_mute.connect(audio.toggle_mute)
+    signals.set_mute.connect(audio.set_mute_state)
     signals.exit_app.connect(app.quit)
 
     # AFK Timer

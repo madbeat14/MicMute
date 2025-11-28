@@ -60,11 +60,24 @@ class NativeKeyboardHook:
         self.hook_proc = HOOKPROC(self._hook_callback)
         self.l_alt_down = False
         self.r_alt_down = False
-        self.target_vk = 0xB3 # Default Media Play/Pause
+        self.config = {
+            'mode': 'toggle',
+            'toggle': 0xB3,
+            'mute': 0,
+            'unmute': 0
+        }
         self.recording_mode = False
         
+    def update_config(self, full_config):
+        """Updates the hook with the full hotkey configuration dictionary."""
+        self.config['mode'] = full_config.get('mode', 'toggle')
+        self.config['toggle'] = full_config.get('toggle', {}).get('vk', 0)
+        self.config['mute'] = full_config.get('mute', {}).get('vk', 0)
+        self.config['unmute'] = full_config.get('unmute', {}).get('vk', 0)
+        
     def set_target_vk(self, vk):
-        self.target_vk = vk
+        # Legacy support / Fallback
+        self.config['toggle'] = vk
 
     def start_recording(self):
         self.recording_mode = True
@@ -98,17 +111,37 @@ class NativeKeyboardHook:
             
             # Recording Mode
             if self.recording_mode and is_down:
-                # Ignore modifier keys alone if desired, but for now capture everything
-                # except mouse clicks (which aren't keyboard events anyway)
                 self.signals.key_recorded.emit(vk)
                 return 1 # Consume event
 
             # Hotkey Logic
-            if vk == self.target_vk:
+            mode = self.config['mode']
+            
+            # 1. Toggle Key (Always active if mode is toggle, OR if collision in separate mode)
+            # Collision Logic: If separate mode but mute_vk == unmute_vk, treat as toggle
+            is_collision = (mode == 'separate' and 
+                          self.config['mute'] == self.config['unmute'] and 
+                          self.config['mute'] != 0)
+            
+            if (mode == 'toggle' and vk == self.config['toggle']) or \
+               (is_collision and vk == self.config['mute']):
                 if is_down:
                     QTimer.singleShot(0, self.signals.toggle_mute.emit)
-                    return 1 # Suppress
-                return 1 # Suppress up event too
+                    return 1
+                return 1
+
+            # 2. Separate Keys (Only if no collision)
+            if mode == 'separate' and not is_collision:
+                if vk == self.config['mute']:
+                    if is_down:
+                        QTimer.singleShot(0, lambda: self.signals.set_mute.emit(True))
+                        return 1
+                    return 1
+                elif vk == self.config['unmute']:
+                    if is_down:
+                        QTimer.singleShot(0, lambda: self.signals.set_mute.emit(False))
+                        return 1
+                    return 1
                 
             # Alt Logic (Hardcoded fallback/secondary)
             if vk == VK_LMENU:
