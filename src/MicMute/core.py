@@ -1,5 +1,4 @@
 import os
-import json
 import gc
 import threading
 from winsound import Beep
@@ -7,8 +6,7 @@ from PySide6.QtCore import QObject, Signal, QUrl
 from PySide6.QtMultimedia import QSoundEffect
 from pycaw.pycaw import AudioUtilities
 
-# --- CONFIGURATION ---
-CONFIG_FILE = "mic_config.json"
+from .config import ConfigManager, CONFIG_FILE
 
 # --- WORKER SIGNAL CLASS ---
 class MuteSignals(QObject):
@@ -39,9 +37,7 @@ class AudioController:
     Handles interaction with Windows Core Audio APIs via pycaw.
     """
     __slots__ = [
-        'volume', 'device', 'device_id', 'beep_enabled', 'beep_config',
-        'sound_config', 'hotkey_config', 'afk_config', 'osd_config',
-        'persistent_overlay', 'sync_ids', 'BEEP_ERROR', 'player',
+        'volume', 'device', 'config_manager', 'BEEP_ERROR', 'player',
         'device_listener', 'enumerator',
         '__weakref__'
     ]
@@ -52,37 +48,7 @@ class AudioController:
         """
         self.volume = None
         self.device = None
-        self.device_id = None
-        self.beep_enabled = True
-        self.beep_config = {
-            'mute': {'freq': 650, 'duration': 180, 'count': 2},
-            'unmute': {'freq': 700, 'duration': 200, 'count': 1}
-        }
-        self.sound_config = {
-            'mute': None,
-            'unmute': None
-        }
-        # New Hotkey Config Structure
-        self.hotkey_config = {
-            # 'toggle' or 'separate'
-            'mode': 'toggle',
-            'toggle': {'vk': 0xB3, 'name': 'Media Play/Pause'},
-            'mute': {'vk': 0, 'name': 'None'},
-            'unmute': {'vk': 0, 'name': 'None'}
-        }
-        self.afk_config = {'enabled': False, 'timeout': 60}
-        self.osd_config = {'enabled': False, 'duration': 1500, 'position': 'Bottom-Center', 'size': 150}
-        self.persistent_overlay = {
-            'enabled': False,
-            'show_vu': False,
-            'opacity': 80,
-            'x': 100,
-            'y': 100,
-            'position_mode': 'Custom',
-            'locked': False,
-            'sensitivity': 5
-        }
-        self.sync_ids = []
+        self.config_manager = ConfigManager()
         self.BEEP_ERROR = (200, 500)
         
         # Audio Player
@@ -91,8 +57,54 @@ class AudioController:
         self.device_listener = None
         self.enumerator = None
         
-        self.load_config()
+        self.config_manager.load_config()
         self.start_device_watcher()
+
+    # Property proxies for backward compatibility and ease of use
+    @property
+    def device_id(self): return self.config_manager.device_id
+    @device_id.setter
+    def device_id(self, value): self.config_manager.device_id = value
+    
+    @property
+    def beep_enabled(self): return self.config_manager.beep_enabled
+    @beep_enabled.setter
+    def beep_enabled(self, value): self.config_manager.beep_enabled = value
+    
+    @property
+    def sync_ids(self): return self.config_manager.sync_ids
+    @sync_ids.setter
+    def sync_ids(self, value): self.config_manager.sync_ids = value
+    
+    @property
+    def beep_config(self): return self.config_manager.beep_config
+    @beep_config.setter
+    def beep_config(self, value): self.config_manager.beep_config = value
+    
+    @property
+    def sound_config(self): return self.config_manager.sound_config
+    @sound_config.setter
+    def sound_config(self, value): self.config_manager.sound_config = value
+    
+    @property
+    def hotkey_config(self): return self.config_manager.hotkey_config
+    @hotkey_config.setter
+    def hotkey_config(self, value): self.config_manager.hotkey_config = value
+    
+    @property
+    def afk_config(self): return self.config_manager.afk_config
+    @afk_config.setter
+    def afk_config(self, value): self.config_manager.afk_config = value
+    
+    @property
+    def osd_config(self): return self.config_manager.osd_config
+    @osd_config.setter
+    def osd_config(self, value): self.config_manager.osd_config = value
+    
+    @property
+    def persistent_overlay(self): return self.config_manager.persistent_overlay
+    @persistent_overlay.setter
+    def persistent_overlay(self, value): self.config_manager.persistent_overlay = value
 
     def start_device_watcher(self):
         """
@@ -119,60 +131,11 @@ class AudioController:
         # Called from COM thread
         signals.device_changed.emit(new_device_id)
 
-    def load_config(self):
-        """
-        Loads application settings from the JSON configuration file.
-        """
-        try:
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, 'r') as f:
-                    data = json.load(f)
-                    self.device_id = data.get('device_id')
-                    self.beep_enabled = data.get('beep_enabled', True)
-                    self.sync_ids = data.get('sync_ids', [])
-                    
-                    saved_beeps = data.get('beep_config')
-                    if saved_beeps: self.beep_config.update(saved_beeps)
-                    
-                    saved_sounds = data.get('sound_config')
-                    if saved_sounds: self.sound_config.update(saved_sounds)
-                    
-                    saved_hotkey = data.get('hotkey')
-                    if saved_hotkey:
-                        # Migration from old format {'vk': ..., 'name': ...}
-                        if 'vk' in saved_hotkey:
-                            self.hotkey_config['toggle'] = saved_hotkey
-                        else:
-                            self.hotkey_config.update(saved_hotkey)
-
-                    saved_afk = data.get('afk')
-                    if saved_afk: self.afk_config.update(saved_afk)
-
-                    saved_osd = data.get('osd')
-                    if saved_osd: self.osd_config.update(saved_osd)
-                    
-                    saved_overlay = data.get('persistent_overlay')
-                    if saved_overlay: self.persistent_overlay.update(saved_overlay)
-        except: pass
-
     def save_config(self):
         """
         Saves current application settings to the JSON configuration file.
         """
-        try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump({
-                    'device_id': self.device_id,
-                    'sync_ids': self.sync_ids,
-                    'beep_enabled': self.beep_enabled,
-                    'beep_config': self.beep_config,
-                    'sound_config': self.sound_config,
-                    'hotkey': self.hotkey_config,
-                    'afk': self.afk_config,
-                    'osd': self.osd_config,
-                    'persistent_overlay': self.persistent_overlay
-                }, f)
-        except: pass
+        self.config_manager.save_config()
 
     def set_beep_enabled(self, enabled):
         """
@@ -357,9 +320,13 @@ class AudioController:
             
             # Sync Slaves (Always force to match target state)
             for slave_id in self.sync_ids:
-                self.set_device_mute(slave_id, new_state)
-                
-            signals.update_icon.emit(new_state)
+                # Avoid self
+                if slave_id != self.device_id:
+                    self.set_device_mute(slave_id, new_state)
+            
+            # Emit signal AFTER syncing so UI reads correct states
+            if current != new_state:
+                signals.update_icon.emit(new_state)
             
         except Exception as e:
             print(f"Error setting mute state: {e}")
@@ -403,40 +370,6 @@ class AudioController:
                 Beep(cfg['freq'], cfg['duration'])
         
         threading.Thread(target=run_beep, daemon=True).start()
-
-    # ... existing methods ...
-
-    def set_mute_state(self, new_state):
-        """
-        Sets the mute state of the current device and synchronized devices.
-        
-        Args:
-            new_state (bool): True to mute, False to unmute.
-        """
-        if not self.volume: return
-        try:
-            current = self.volume.GetMute()
-            
-            if current != new_state:
-                self.volume.SetMute(new_state, None)
-                
-                # Play Sound (Custom or Beep)
-                sound_type = 'mute' if new_state else 'unmute'
-                self.play_sound(sound_type)
-            
-            # Sync Slaves (Always force to match target state)
-            for slave_id in self.sync_ids:
-                # Avoid self
-                if slave_id != self.device_id:
-                    self.set_device_mute(slave_id, new_state)
-            
-            # Emit signal AFTER syncing so UI reads correct states
-            if current != new_state:
-                signals.update_icon.emit(new_state)
-                    
-        except Exception:
-            if self.beep_enabled:
-                Beep(*self.BEEP_ERROR)
 
     def get_mute_state(self):
         """

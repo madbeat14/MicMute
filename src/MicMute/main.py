@@ -4,19 +4,21 @@ import gc
 import warnings
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QDialog
 from PySide6.QtGui import QIcon, QAction
+from PySide6.QtCore import QTimer
 
 # Suppress warnings (e.g. pycaw COM errors)
 warnings.simplefilter("ignore", UserWarning)
 
-from .core import signals, audio, CONFIG_FILE
-from .utils import NativeKeyboardHook, is_system_light_theme, get_idle_duration, set_default_device
+from .core import signals, audio
+from .config import CONFIG_FILE
+from .utils import is_system_light_theme, get_idle_duration, set_default_device, set_high_priority
 from pycaw.pycaw import AudioUtilities
-from .gui import ThemeListener, DeviceSelectionDialog
+from .gui import ThemeListener, SettingsDialog
 from .overlay import MetroOSD, StatusOverlay
-from PySide6.QtCore import QTimer
+from .input_manager import InputManager
 
 # --- CONFIGURATION ---
-VERSION = "2.8.2"
+VERSION = "2.9.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -80,18 +82,14 @@ def main():
         else: return icon_white_muted if muted else icon_white_unmuted
 
     tray.setIcon(get_current_icon(current_mute_state, is_light_theme))
-    tray.setToolTip(f"Mic Mute v{VERSION}")
+    tray.setToolTip(f"MicMute v{VERSION}")
     
     # Listeners
     theme_listener = ThemeListener()
     
-    # Start Hook in Dedicated Thread
-    # This prevents UI blocking from affecting hook latency
-    from .utils import HookThread
-    hook_thread = HookThread(signals, audio.hotkey_config)
-    hook_thread.start()
-    # Wait for hook to install
-    hook_thread.ready_event.wait(2.0)
+    # Input Manager (Hooks)
+    input_manager = InputManager()
+    input_manager.start()
     
     # Menu Functions
     # Dialog Instances
@@ -156,9 +154,6 @@ def main():
         """
         Displays the settings dialog, initializing it if necessary.
         """
-        # Lazy Import to save startup memory
-        from .gui import SettingsDialog
-        
         try:
             if dialogs['settings'] and dialogs['settings'].isVisible():
                 dialogs['settings'].activateWindow()
@@ -169,16 +164,17 @@ def main():
             dialogs['settings'] = None
 
         # Pass hook_thread instead of raw hook
-        dialog = SettingsDialog(audio, hook_thread)
+        dialog = SettingsDialog(audio, input_manager.hook_thread)
         dialogs['settings'] = dialog
         
+        def apply_updates():
+            """Applies configuration changes to OSD and Overlay."""
+            osd.set_config(audio.osd_config)
+            overlay.set_config(audio.persistent_overlay)
+        
+        dialog.settings_applied.connect(apply_updates)
+        
         def on_settings_finished(result):
-            if result == QDialog.Accepted:
-                # Update OSD config after settings close
-                osd.set_config(audio.osd_config)
-                overlay.set_config(audio.persistent_overlay)
-                # overlay.set_target_device(audio.device_id) # Removed
-            
             # Explicit Cleanup
             dialogs['settings'] = None
             # Schedule C++ deletion
@@ -330,35 +326,8 @@ def main():
     afk_timer.timeout.connect(schedule_afk_check)
     schedule_afk_check()
 
-    # --- EVENT QUEUE PROCESSING ---
-    # Poll the hook's event queue every 10ms
-    # This decouples the hook callback from the Qt event loop
-    event_timer = QTimer()
-    event_timer.setInterval(10)
-    
-    def process_events():
-        """
-        Processes events from the keyboard hook queue on the main thread.
-        """
-        # Access queue via hook_thread.hook
-        if hook_thread.hook and not hook_thread.hook.event_queue.empty():
-            try:
-                while not hook_thread.hook.event_queue.empty():
-                    event = hook_thread.hook.event_queue.get_nowait()
-                    if event == 'toggle':
-                        audio.toggle_mute()
-                    elif event == 'mute':
-                        audio.set_mute_state(True)
-                    elif event == 'unmute':
-                        audio.set_mute_state(False)
-            except: pass
-            
-    event_timer.timeout.connect(process_events)
-    event_timer.start()
-
     # --- HIGH PRIORITY ---
     # Set process priority to High to prevent hook timeouts during gaming
-    from .utils import set_high_priority
     set_high_priority()
 
     print(f"\n{'='*50}")
@@ -370,7 +339,7 @@ def main():
     try:
         sys.exit(app.exec())
     finally:
-        hook_thread.stop()
+        input_manager.stop()
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,20 @@
+# Changelog
 
+## [2.9.0] - 2025-11-29
+### Added
+- **Modular Architecture**: Refactored monolithic `gui.py` into a structured `gui/` package with separate modules for devices, hotkeys, settings, and themes.
+- **Overlay Settings**:
+    - Added "Position Mode" dropdown (Custom vs. 9 Predefined positions).
+    - Added "Size" slider (50% - 200%) synchronized with a pixel height input.
+- **OSD Settings**:
+    - Added "Size" slider and pixel input.
+    - Added "Position" dropdown (Top, Center, Bottom).
+- **UX Improvements**:
+    - Split "Save & Close" into separate "Save" (Apply) and "Close" buttons in Settings.
+
+### Changed
+- Moved configuration logic from `core.py` to `config.py`.
+- Moved hook handling to `input_manager.py`.
 
 ## [2.8.2] - 2025-11-29
 ### Documentation

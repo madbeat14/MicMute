@@ -290,9 +290,30 @@ class StatusOverlay(QWidget):
         
         self.led_dot.setVisible(self.show_vu)
         
-        # Resize based on content
-        width = 60 if self.show_vu else 45
-        self.resize(width, 40)
+        # Scaling
+        scale = config.get('scale', 100) / 100.0
+        
+        # Base dimensions
+        base_h = 40
+        base_w = 60 if self.show_vu else 45
+        base_icon = 24
+        base_led = 10
+        
+        # Scaled dimensions
+        h = int(base_h * scale)
+        w = int(base_w * scale)
+        icon_s = int(base_icon * scale)
+        led_s = int(base_led * scale)
+        
+        self.resize(w, h)
+        self.icon_size = icon_s
+        self.icon_label.setFixedSize(icon_s, icon_s)
+        self.led_dot.setFixedSize(led_s, led_s)
+        
+        # Update Icon Pixmap size
+        path = self.icon_muted if self.is_muted else self.icon_unmuted
+        pixmap = QIcon(path).pixmap(icon_s, icon_s)
+        self.icon_label.setPixmap(pixmap)
         
         # Position
         self.position_mode = config.get('position_mode', 'Custom')
@@ -367,7 +388,8 @@ class StatusOverlay(QWidget):
         
         # Update Icon
         path = self.icon_muted if is_muted else self.icon_unmuted
-        pixmap = QIcon(path).pixmap(24, 24)
+        size = getattr(self, 'icon_size', 24)
+        pixmap = QIcon(path).pixmap(size, size)
         self.icon_label.setPixmap(pixmap)
         
         # Manage Meter
