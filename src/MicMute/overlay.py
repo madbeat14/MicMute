@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, Signal
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, Signal, Slot
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QPixmap, QCursor
 from PySide6.QtSvg import QSvgRenderer
 import ctypes
@@ -25,9 +25,15 @@ class MetroOSD(QWidget):
         self.radius = 10
         
         # Icons
-        self.icon_unmuted = icon_unmuted_path
-        self.icon_muted = icon_muted_path
-        self.current_icon_path = self.icon_unmuted
+        # Icons
+        self.icon_unmuted_path = icon_unmuted_path
+        self.icon_muted_path = icon_muted_path
+        
+        # Cache Renderers
+        self.renderer_unmuted = QSvgRenderer(self.icon_unmuted_path)
+        self.renderer_muted = QSvgRenderer(self.icon_muted_path)
+        
+        self.current_renderer = self.renderer_unmuted
         
         # Layout & Content
         self.layout = QVBoxLayout(self)
@@ -59,7 +65,7 @@ class MetroOSD(QWidget):
         self.resize(self.osd_size, self.osd_size)
         
     def show_osd(self, is_muted):
-        self.current_icon_path = self.icon_muted if is_muted else self.icon_unmuted
+        self.current_renderer = self.renderer_muted if is_muted else self.renderer_unmuted
         self.update() # Trigger repaint with new icon
         
         # Reset Timer
@@ -128,14 +134,12 @@ class MetroOSD(QWidget):
         painter.drawRoundedRect(self.rect(), self.radius, self.radius)
         
         # Draw Icon
-        if self.current_icon_path:
-            renderer = QSvgRenderer(self.current_icon_path)
-            if renderer.isValid():
-                # Scale icon to 65% of container
-                icon_size = int(self.width() * 0.65)
-                x = (self.width() - icon_size) // 2
-                y = (self.height() - icon_size) // 2
-                renderer.render(painter, QRect(x, y, icon_size, icon_size))
+        if self.current_renderer and self.current_renderer.isValid():
+            # Scale icon to 65% of container
+            icon_size = int(self.width() * 0.65)
+            x = (self.width() - icon_size) // 2
+            y = (self.height() - icon_size) // 2
+            self.current_renderer.render(painter, QRect(x, y, icon_size, icon_size))
 
 # --- PERSISTENT OVERLAY ---
 try:
@@ -347,6 +351,7 @@ class StatusOverlay(QWidget):
         self.meter = None
         self.set_active(False)
 
+    @Slot()
     def sample_audio(self):
         if not self.meter: return
         try:

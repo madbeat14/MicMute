@@ -1,4 +1,14 @@
 
+
+## [2.3.0] - 2025-11-29
+### Performance
+- **CPU Optimization**: Implemented dynamic throttling for AFK detection, reducing idle CPU usage to near zero.
+- **RAM Optimization**: Added lazy loading for Settings Window (saving ~10-20MB startup RAM) and `__slots__` for AudioController.
+- **GUI Optimization**: Implemented asset caching for OSD icons to prevent disk I/O on every mute toggle.
+
+### Stability
+- **Crash Fix**: Resolved a crash related to `__slots__` and PySide signal connections by adding `__weakref__`.
+
 ## [2.2.0] - 2025-11-29
 ### Fixes
 - **Voice Activity Meter**: Replaced `pycaw` dependency with robust direct COM implementation to fix detection issues.

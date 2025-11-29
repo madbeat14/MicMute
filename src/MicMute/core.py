@@ -22,6 +22,13 @@ signals = MuteSignals()
 
 # --- AUDIO CONTROL ---
 class AudioController:
+    __slots__ = [
+        'volume', 'device', 'device_id', 'beep_enabled', 'beep_config',
+        'sound_config', 'hotkey_config', 'afk_config', 'osd_config',
+        'persistent_overlay', 'sync_ids', 'BEEP_ERROR', 'player',
+        '__weakref__'
+    ]
+
     def __init__(self):
         self.volume = None
         self.device = None
@@ -141,25 +148,33 @@ class AudioController:
 
     def find_device(self):
         try:
+            # Use generator to avoid creating full list if possible, though GetAllDevices returns list
+            # We iterate efficiently
             all_devices = AudioUtilities.GetAllDevices()
+            
             if self.device_id:
-                for dev in all_devices:
-                    if dev.id == self.device_id:
-                        print(f"✓ Found saved device: {dev.FriendlyName}")
-                        self.set_device_object(dev)
-                        return True
+                # Generator expression for finding device
+                found_dev = next((d for d in all_devices if d.id == self.device_id), None)
+                if found_dev:
+                    print(f"✓ Found saved device: {found_dev.FriendlyName}")
+                    self.set_device_object(found_dev)
+                    return True
+                    
                 print("Saved device not found, falling back to default...")
+            
             try:
                 enumerator = AudioUtilities.GetDeviceEnumerator()
                 default_dev = enumerator.GetDefaultAudioEndpoint(1, 0)
                 default_id = default_dev.GetId()
-                for dev in all_devices:
-                    if dev.id == default_id:
-                        print(f"✓ Using system default: {dev.FriendlyName}")
-                        self.device_id = dev.id
-                        self.set_device_object(dev)
-                        return True
+                
+                found_default = next((d for d in all_devices if d.id == default_id), None)
+                if found_default:
+                    print(f"✓ Using system default: {found_default.FriendlyName}")
+                    self.device_id = found_default.id
+                    self.set_device_object(found_default)
+                    return True
             except: pass
+            
             return False
         except Exception as e:
             print(f"Error finding device: {e}")

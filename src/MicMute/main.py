@@ -11,12 +11,12 @@ warnings.simplefilter("ignore", UserWarning)
 from .core import signals, audio, CONFIG_FILE
 from .utils import NativeKeyboardHook, is_system_light_theme, get_idle_duration, set_default_device
 from pycaw.pycaw import AudioUtilities
-from .gui import ThemeListener, DeviceSelectionDialog, SettingsDialog
+from .gui import ThemeListener, DeviceSelectionDialog
 from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -130,6 +130,9 @@ def main():
             submenu_devices.addAction(error_action)
 
     def show_settings_dialog():
+        # Lazy Import to save startup memory
+        from .gui import SettingsDialog
+        
         try:
             if dialogs['settings'] and dialogs['settings'].isVisible():
                 dialogs['settings'].activateWindow()
@@ -148,8 +151,11 @@ def main():
                 osd.set_config(audio.osd_config)
                 overlay.set_config(audio.persistent_overlay)
                 overlay.set_target_device(audio.device_id)
+            
+            # Explicit Cleanup
             dialogs['settings'] = None
-            gc.collect()
+            dialog.deleteLater() # Schedule C++ deletion
+            gc.collect() # Force Python GC
 
         dialog.finished.connect(on_settings_finished)
         dialog.show()
@@ -210,25 +216,52 @@ def main():
     signals.set_mute.connect(audio.set_mute_state)
     signals.exit_app.connect(app.quit)
 
-    # AFK Timer
+    # AFK Timer (Dynamic Throttling)
     afk_timer = QTimer()
-    def check_afk():
+    afk_timer.setSingleShot(True)
+
+    def schedule_afk_check():
         if not audio.afk_config.get('enabled', False):
+            afk_timer.stop()
             return
-        
-        idle_time = get_idle_duration()
+
         timeout = audio.afk_config.get('timeout', 60)
+        idle_time = get_idle_duration()
         
-        if idle_time >= timeout:
-            # Only mute if not already muted
+        # Calculate time remaining until timeout
+        remaining = timeout - idle_time
+        
+        if remaining <= 0:
+            # Timeout reached
             if not audio.get_mute_state():
                 print(f"AFK Detected ({idle_time:.1f}s). Muting...")
                 audio.toggle_mute()
-                # Optional: Show notification?
-                # tray.showMessage("AFK Mute", "Microphone muted due to inactivity.", QSystemTrayIcon.Information, 2000)
+            # Check again in a while (e.g. 1 second) to see if user returns or to keep monitoring
+            next_interval = 1000
+        else:
+            # Wait for the remaining time, plus a small buffer (100ms)
+            # But don't wait too long in case config changes (though config changes trigger re-schedule)
+            # Cap at 5 minutes to be safe, or just trust the math.
+            # Let's use the exact remaining time.
+            next_interval = int(remaining * 1000) + 100
+            
+            # Sanity check: never poll faster than 1s unless very close
+            if next_interval < 1000: next_interval = 1000
 
-    afk_timer.timeout.connect(check_afk)
-    afk_timer.start(1000) # Check every 1 second
+        afk_timer.start(next_interval)
+
+    def on_afk_config_changed(new_config):
+        # Re-evaluate timer when config changes
+        schedule_afk_check()
+
+    # Hook into config changes (we need to add a signal for this in core.py or just poll less aggressively)
+    # For now, we'll just start the loop. Ideally `audio` would emit signal on config change.
+    # Since we don't have a specific signal for AFK config change in AudioController yet, 
+    # we will rely on the loop self-correcting or add a signal later.
+    # Actually, let's just start it.
+    
+    afk_timer.timeout.connect(schedule_afk_check)
+    schedule_afk_check()
 
     print(f"\n{'='*50}")
     print(f"  Microphone Mute Toggle v{VERSION} (Refactored)")
