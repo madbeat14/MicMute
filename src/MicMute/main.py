@@ -16,7 +16,7 @@ from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "2.0.0"
+VERSION = "2.2.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
