@@ -53,6 +53,29 @@ def get_idle_duration():
     return 0.0
 
 # --- NATIVE KEYBOARD HOOK ---
+import queue
+
+def set_high_priority():
+    """Sets the process priority to High to prevent hook timeouts during high load."""
+    try:
+        import psutil
+        p = psutil.Process()
+        p.nice(psutil.HIGH_PRIORITY_CLASS)
+        print("Process priority set to HIGH.")
+    except ImportError:
+        # Fallback to ctypes
+        try:
+            kernel32 = ctypes.windll.kernel32
+            # HIGH_PRIORITY_CLASS = 0x00000080
+            # GetCurrentProcess = -1
+            kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00000080)
+            print("Process priority set to HIGH (via ctypes).")
+        except Exception as e:
+            print(f"Failed to set process priority: {e}")
+    except Exception as e:
+        print(f"Failed to set process priority: {e}")
+
+# --- NATIVE KEYBOARD HOOK ---
 class NativeKeyboardHook:
     def __init__(self, signals):
         self.signals = signals
@@ -60,24 +83,33 @@ class NativeKeyboardHook:
         self.hook_proc = HOOKPROC(self._hook_callback)
         self.l_alt_down = False
         self.r_alt_down = False
-        self.config = {
-            'mode': 'toggle',
-            'toggle': 0xB3,
-            'mute': 0,
-            'unmute': 0
-        }
         self.recording_mode = False
+        
+        # Optimized config attributes
+        self.mode = 'toggle'
+        self.toggle_vk = 0xB3
+        self.mute_vk = 0
+        self.unmute_vk = 0
+        self.is_collision = False
+        
+        # Event Queue for thread-safe, fast communication
+        self.event_queue = queue.SimpleQueue()
         
     def update_config(self, full_config):
         """Updates the hook with the full hotkey configuration dictionary."""
-        self.config['mode'] = full_config.get('mode', 'toggle')
-        self.config['toggle'] = full_config.get('toggle', {}).get('vk', 0)
-        self.config['mute'] = full_config.get('mute', {}).get('vk', 0)
-        self.config['unmute'] = full_config.get('unmute', {}).get('vk', 0)
+        self.mode = full_config.get('mode', 'toggle')
+        self.toggle_vk = full_config.get('toggle', {}).get('vk', 0)
+        self.mute_vk = full_config.get('mute', {}).get('vk', 0)
+        self.unmute_vk = full_config.get('unmute', {}).get('vk', 0)
+        
+        # Pre-calculate collision logic
+        self.is_collision = (self.mode == 'separate' and 
+                           self.mute_vk == self.unmute_vk and 
+                           self.mute_vk != 0)
         
     def set_target_vk(self, vk):
         # Legacy support / Fallback
-        self.config['toggle'] = vk
+        self.toggle_vk = vk
 
     def start_recording(self):
         self.recording_mode = True
@@ -115,31 +147,24 @@ class NativeKeyboardHook:
                 return 1 # Consume event
 
             # Hotkey Logic
-            mode = self.config['mode']
-            
             # 1. Toggle Key (Always active if mode is toggle, OR if collision in separate mode)
-            # Collision Logic: If separate mode but mute_vk == unmute_vk, treat as toggle
-            is_collision = (mode == 'separate' and 
-                          self.config['mute'] == self.config['unmute'] and 
-                          self.config['mute'] != 0)
-            
-            if (mode == 'toggle' and vk == self.config['toggle']) or \
-               (is_collision and vk == self.config['mute']):
+            if (self.mode == 'toggle' and vk == self.toggle_vk) or \
+               (self.is_collision and vk == self.mute_vk):
                 if is_down:
-                    QTimer.singleShot(0, self.signals.toggle_mute.emit)
+                    self.event_queue.put('toggle')
                     return 1
                 return 1
 
             # 2. Separate Keys (Only if no collision)
-            if mode == 'separate' and not is_collision:
-                if vk == self.config['mute']:
+            if self.mode == 'separate' and not self.is_collision:
+                if vk == self.mute_vk:
                     if is_down:
-                        QTimer.singleShot(0, lambda: self.signals.set_mute.emit(True))
+                        self.event_queue.put('mute')
                         return 1
                     return 1
-                elif vk == self.config['unmute']:
+                elif vk == self.unmute_vk:
                     if is_down:
-                        QTimer.singleShot(0, lambda: self.signals.set_mute.emit(False))
+                        self.event_queue.put('unmute')
                         return 1
                     return 1
                 
@@ -155,9 +180,45 @@ class NativeKeyboardHook:
 
     def _check_alts(self):
         if self.l_alt_down and self.r_alt_down:
-            QTimer.singleShot(0, self.signals.toggle_mute.emit)
+            self.event_queue.put('toggle')
             self.l_alt_down = False
             self.r_alt_down = False
+
+# --- MESSAGE LOOP & THREADING ---
+import threading
+
+class HookThread(threading.Thread):
+    def __init__(self, signals, config):
+        super().__init__(daemon=True)
+        self.signals = signals
+        self.config = config
+        self.hook = None
+        self.thread_id = None
+        self.ready_event = threading.Event()
+
+    def run(self):
+        self.thread_id = kernel32.GetCurrentThreadId()
+        self.hook = NativeKeyboardHook(self.signals)
+        self.hook.update_config(self.config)
+        self.hook.install()
+        self.ready_event.set()
+
+        # Message Pump
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+
+        self.hook.uninstall()
+
+    def stop(self):
+        if self.thread_id:
+            user32.PostThreadMessageW(self.thread_id, 0x0012, 0, 0) # WM_QUIT
+            self.join(1.0)
+
+    def update_config(self, config):
+        if self.hook:
+            self.hook.update_config(config)
 
 # --- WINDOWS AUDIO POLICY CONFIG (Undocumented API) ---
 try:

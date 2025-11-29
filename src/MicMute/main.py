@@ -16,7 +16,7 @@ from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "2.4.0"
+VERSION = "2.5.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -70,9 +70,13 @@ def main():
     
     # Listeners
     theme_listener = ThemeListener()
-    kb_hook = NativeKeyboardHook(signals)
-    kb_hook.update_config(audio.hotkey_config)
-    kb_hook.install()
+    
+    # Start Hook in Dedicated Thread
+    # This prevents UI blocking from affecting hook latency
+    from .utils import HookThread
+    hook_thread = HookThread(signals, audio.hotkey_config)
+    hook_thread.start()
+    hook_thread.ready_event.wait(2.0) # Wait for hook to install
     
     # Menu Functions
     # Dialog Instances
@@ -142,7 +146,8 @@ def main():
             # Object deleted but reference remains
             dialogs['settings'] = None
 
-        dialog = SettingsDialog(audio, kb_hook)
+        # Pass hook_thread instead of raw hook
+        dialog = SettingsDialog(audio, hook_thread)
         dialogs['settings'] = dialog
         
         def on_settings_finished(result):
@@ -263,6 +268,34 @@ def main():
     afk_timer.timeout.connect(schedule_afk_check)
     schedule_afk_check()
 
+    # --- EVENT QUEUE PROCESSING ---
+    # Poll the hook's event queue every 10ms
+    # This decouples the hook callback from the Qt event loop
+    event_timer = QTimer()
+    event_timer.setInterval(10)
+    
+    def process_events():
+        # Access queue via hook_thread.hook
+        if hook_thread.hook and not hook_thread.hook.event_queue.empty():
+            try:
+                while not hook_thread.hook.event_queue.empty():
+                    event = hook_thread.hook.event_queue.get_nowait()
+                    if event == 'toggle':
+                        audio.toggle_mute()
+                    elif event == 'mute':
+                        audio.set_mute_state(True)
+                    elif event == 'unmute':
+                        audio.set_mute_state(False)
+            except: pass
+            
+    event_timer.timeout.connect(process_events)
+    event_timer.start()
+
+    # --- HIGH PRIORITY ---
+    # Set process priority to High to prevent hook timeouts during gaming
+    from .utils import set_high_priority
+    set_high_priority()
+
     print(f"\n{'='*50}")
     print(f"  Microphone Mute Toggle v{VERSION} (Refactored)")
     print(f"  Mode: Non-Admin | Native Hooks | Fully Configurable")
@@ -272,7 +305,7 @@ def main():
     try:
         sys.exit(app.exec())
     finally:
-        kb_hook.uninstall()
+        hook_thread.stop()
 
 if __name__ == "__main__":
     main()

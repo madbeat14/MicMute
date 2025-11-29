@@ -1,5 +1,15 @@
 
 
+## [2.5.0] - 2025-11-29
+### Performance
+- **Hook Thread**: Moved Windows Keyboard Hook to a dedicated thread with its own message loop. This completely isolates input handling from the main application thread, eliminating hook timeouts.
+- **Process Priority**: Added automatic process priority elevation (High) to prevent CPU starvation and input lag during high-load scenarios (e.g., gaming).
+- **Audio Feedback**: Moved `winsound.Beep` calls to a background thread to prevent blocking the main event loop during mute toggles.
+
+### Fixes
+- **Input Leakage**: Fixed critical issue where rapid hotkey presses caused the original key action (e.g., Media Play/Pause) to leak through to other applications.
+- **Gaming Freeze**: Fixed issue where using the hotkey while holding movement keys (WASD) in games caused the character to get stuck moving in one direction.
+
 ## [2.4.0] - 2025-11-29
 ### Features
 - **Device Selection**: Added "Monitor Device" selector to Persistent Overlay settings, allowing users to choose a specific microphone for the voice activity meter.

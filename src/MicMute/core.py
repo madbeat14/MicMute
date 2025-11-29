@@ -1,6 +1,7 @@
 import os
 import json
 import gc
+import threading
 from winsound import Beep
 from PySide6.QtCore import QObject, Signal, QUrl
 from PySide6.QtMultimedia import QSoundEffect
@@ -251,9 +252,13 @@ class AudioController:
             except: pass
             
         # Fallback to Beep
-        cfg = self.beep_config[sound_type]
-        for _ in range(cfg['count']):
-            Beep(cfg['freq'], cfg['duration'])
+        # Fallback to Beep
+        def run_beep():
+            cfg = self.beep_config[sound_type]
+            for _ in range(cfg['count']):
+                Beep(cfg['freq'], cfg['duration'])
+        
+        threading.Thread(target=run_beep, daemon=True).start()
 
     # ... existing methods ...
 
