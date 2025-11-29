@@ -139,8 +139,8 @@ class MetroOSD(QWidget):
 
 # --- PERSISTENT OVERLAY ---
 try:
-    from .utils import IAudioMeterInformation
-    from comtypes import client, GUID, IUnknown
+    from .utils import IAudioMeterInformation, IMMDeviceEnumerator, CLSID_MMDeviceEnumerator, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL
+    from comtypes import client
     HAS_COM = True
 except ImportError:
     HAS_COM = False
@@ -311,26 +311,35 @@ class StatusOverlay(QWidget):
         if self.meter_timer.isActive(): return
         
         try:
-            from pycaw.pycaw import AudioUtilities
-            
-            enumerator = AudioUtilities.GetDeviceEnumerator()
+            # Create Enumerator
+            enumerator = client.CreateObject(CLSID_MMDeviceEnumerator, interface=IMMDeviceEnumerator)
             
             device = None
             if self.target_device_id:
                 try:
+                    # GetDevice takes ID string
                     device = enumerator.GetDevice(self.target_device_id)
                 except Exception:
                     print(f"Could not find device with ID: {self.target_device_id}")
             
             if not device:
                 # Fallback to default
-                device = enumerator.GetDefaultAudioEndpoint(1, 1) # eCapture, eMultimedia
+                device = enumerator.GetDefaultAudioEndpoint(eCapture, 0) # eCapture, eConsole/0 (Role doesn't matter much for default)
             
-            # Use CLSCTX_ALL (23) to ensure compatibility
-            unknown = device.Activate(IAudioMeterInformation._iid_, 23, None) 
-            self.meter = unknown.QueryInterface(IAudioMeterInformation)
+            # Activate Meter
+            # Activate returns POINTER(POINTER(IUnknown)), so we need to dereference or cast?
+            # In our definition: (['out', 'retval'], POINTER(POINTER(IUnknown)), 'ppInterface')
+            # comtypes handles the double pointer for retval usually.
+            # But wait, our definition in utils.py for Activate returns POINTER(POINTER(IUnknown)).
+            # Let's check debug_audio.py usage:
+            # meter_unk = device.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
+            # meter = meter_unk.QueryInterface(IAudioMeterInformation)
+            
+            meter_unk = device.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
+            self.meter = meter_unk.QueryInterface(IAudioMeterInformation)
             self.meter_timer.start()
-        except Exception:
+        except Exception as e:
+            print(f"Error starting meter: {e}")
             pass
 
     def stop_meter(self):

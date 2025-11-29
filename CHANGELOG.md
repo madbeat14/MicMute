@@ -1,4 +1,14 @@
 
+## [2.2.0] - 2025-11-29
+### Fixes
+- **Voice Activity Meter**: Replaced `pycaw` dependency with robust direct COM implementation to fix detection issues.
+
+### Refactor
+- **COM Interfaces**: Extracted COM definitions to `src/MicMute/com_interfaces.py` for better maintainability.
+
+### Documentation
+- **Code Comments**: Added detailed documentation and references for all used COM GUIDs.
+
 ### Fixes
 - **Sync Timing**: Fixed issue where UI updated before devices were actually muted.
 - **Crash Fix**: Resolved `RuntimeError` and `NameError` when reopening dialogs after closure.
