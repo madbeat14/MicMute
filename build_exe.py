@@ -7,6 +7,8 @@ SRC_DIR = os.path.join(BASE_DIR, "src")
 ENTRY_POINT = os.path.join(BASE_DIR, "run.py")
 ASSETS_SRC = os.path.join(SRC_DIR, "MicMute", "assets")
 ASSETS_DEST = os.path.join("MicMute", "assets")
+DIST_DIR = os.path.join(BASE_DIR, "dist")
+BUILD_DIR = os.path.join(BASE_DIR, "build")
 
 # PyInstaller arguments
 args = [
@@ -16,10 +18,11 @@ args = [
     '--windowed',  # Hide console
     '--noconfirm',
     '--clean',
+    f'--distpath={DIST_DIR}',
+    f'--workpath={BUILD_DIR}',
     f'--paths={SRC_DIR}',
     f'--add-data={ASSETS_SRC}{os.pathsep}{ASSETS_DEST}',
     '--hidden-import=PySide6',
-    '--hidden-import=pycaw',
 ]
 
 print(f"Building EXE with args: {args}")
