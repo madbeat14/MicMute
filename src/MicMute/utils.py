@@ -158,3 +158,101 @@ class NativeKeyboardHook:
             QTimer.singleShot(0, self.signals.toggle_mute.emit)
             self.l_alt_down = False
             self.r_alt_down = False
+
+# --- WINDOWS AUDIO POLICY CONFIG (Undocumented API) ---
+try:
+    import comtypes
+    from comtypes import client
+    from comtypes import GUID, IUnknown, COMMETHOD, HRESULT
+    
+    class WAVEFORMATEX(Structure):
+        _fields_ = [
+            ("wFormatTag", wintypes.WORD),
+            ("nChannels", wintypes.WORD),
+            ("nSamplesPerSec", wintypes.DWORD),
+            ("nAvgBytesPerSec", wintypes.DWORD),
+            ("nBlockAlign", wintypes.WORD),
+            ("wBitsPerSample", wintypes.WORD),
+            ("cbSize", wintypes.WORD),
+        ]
+
+    class PROPERTYKEY(Structure):
+        _fields_ = [
+            ("fmtid", GUID),
+            ("pid", wintypes.DWORD),
+        ]
+
+    class PROPVARIANT(Structure):
+        _fields_ = [
+            ("vt", wintypes.WORD),
+            ("wReserved1", wintypes.WORD),
+            ("wReserved2", wintypes.WORD),
+            ("wReserved3", wintypes.WORD),
+            ("data", ctypes.c_ulonglong * 2),
+        ]
+
+    class IPolicyConfig(IUnknown):
+        _iid_ = GUID("{f8679f50-850a-41cf-9c72-430f290290c8}")
+        _methods_ = [
+            COMMETHOD([], HRESULT, 'GetMixFormat',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['out'], ctypes.POINTER(WAVEFORMATEX), 'ppFormat')),
+            COMMETHOD([], HRESULT, 'GetDeviceFormat',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.c_int, 'bDefault'),
+                      (['out'], ctypes.POINTER(WAVEFORMATEX), 'ppFormat')),
+            COMMETHOD([], HRESULT, 'ResetDeviceFormat',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName')),
+            COMMETHOD([], HRESULT, 'SetDeviceFormat',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.POINTER(WAVEFORMATEX), 'pEndpointFormat'),
+                      (['in'], ctypes.POINTER(WAVEFORMATEX), 'pMixFormat')),
+            COMMETHOD([], HRESULT, 'GetProcessingPeriod',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.c_int, 'bDefault'),
+                      (['out'], ctypes.POINTER(ctypes.c_longlong), 'pmftDefaultPeriod'),
+                      (['out'], ctypes.POINTER(ctypes.c_longlong), 'pmftMinimumPeriod')),
+            COMMETHOD([], HRESULT, 'SetProcessingPeriod',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.POINTER(ctypes.c_longlong), 'pmftPeriod')),
+            COMMETHOD([], HRESULT, 'GetShareMode',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['out'], ctypes.POINTER(ctypes.c_int), 'pMode')),
+            COMMETHOD([], HRESULT, 'SetShareMode',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.c_int, 'mode')),
+            COMMETHOD([], HRESULT, 'GetPropertyValue',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.POINTER(PROPERTYKEY), 'pKey'),
+                      (['out'], ctypes.POINTER(PROPVARIANT), 'pValue')),
+            COMMETHOD([], HRESULT, 'SetPropertyValue',
+                      (['in'], ctypes.c_wchar_p, 'pszDeviceName'),
+                      (['in'], ctypes.POINTER(PROPERTYKEY), 'pKey'),
+                      (['in'], ctypes.POINTER(PROPVARIANT), 'pValue')),
+            COMMETHOD([], HRESULT, 'SetDefaultEndpoint',
+                      (['in'], ctypes.c_wchar_p, 'wszDeviceId'),
+                      (['in'], ctypes.c_int, 'role')),
+            COMMETHOD([], HRESULT, 'SetEndpointVisibility',
+                      (['in'], ctypes.c_wchar_p, 'wszDeviceId'),
+                      (['in'], ctypes.c_int, 'bVisible')),
+        ]
+
+    def set_default_device(device_id):
+        try:
+            policy_config = client.CreateObject(
+                GUID("{870af99c-171d-4f9e-af0d-e63df40c2bc9}"),
+                interface=IPolicyConfig
+            )
+            # Role: 0=eConsole, 1=eMultimedia, 2=eCommunications
+            policy_config.SetDefaultEndpoint(device_id, 0) # Console
+            policy_config.SetDefaultEndpoint(device_id, 1) # Multimedia
+            policy_config.SetDefaultEndpoint(device_id, 2) # Communications
+            return True
+        except Exception as e:
+            print(f"Failed to set default device: {e}")
+            return False
+
+except ImportError:
+    def set_default_device(device_id):
+        print("comtypes not found, cannot set default device.")
+        return False

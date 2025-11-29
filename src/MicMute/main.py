@@ -2,7 +2,7 @@ import sys
 import os
 import gc
 import warnings
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QDialog
 from PySide6.QtGui import QIcon, QAction
 
 # Suppress warnings (e.g. pycaw COM errors)
@@ -15,7 +15,7 @@ from .overlay import MetroOSD
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "1.10.0"
+VERSION = "2.0.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -68,22 +68,55 @@ def main():
     kb_hook.install()
     
     # Menu Functions
+    # Dialog Instances
+    dialogs = {'settings': None, 'select': None}
+
     def show_select_dialog():
+        try:
+            if dialogs['select'] and dialogs['select'].isVisible():
+                dialogs['select'].activateWindow()
+                dialogs['select'].raise_()
+                return
+        except RuntimeError:
+            dialogs['select'] = None
+
         dialog = DeviceSelectionDialog()
-        if dialog.exec():
-            if dialog.selected_device_id:
+        dialogs['select'] = dialog
+        
+        def on_select_finished(result):
+            if result == QDialog.Accepted and dialog.selected_device_id:
                 if audio.set_device_by_id(dialog.selected_device_id):
                     tray.showMessage("Success", "Microphone selected!", QSystemTrayIcon.Information, 2000)
                 else:
                     tray.showMessage("Error", "Failed to connect.", QSystemTrayIcon.Warning, 2000)
-        gc.collect()
+            dialogs['select'] = None
+            gc.collect()
+
+        dialog.finished.connect(on_select_finished)
+        dialog.show()
 
     def show_settings_dialog():
+        try:
+            if dialogs['settings'] and dialogs['settings'].isVisible():
+                dialogs['settings'].activateWindow()
+                dialogs['settings'].raise_()
+                return
+        except RuntimeError:
+            # Object deleted but reference remains
+            dialogs['settings'] = None
+
         dialog = SettingsDialog(audio, kb_hook)
-        if dialog.exec():
-            # Update OSD config after settings close
-            osd.set_config(audio.osd_config)
-        gc.collect()
+        dialogs['settings'] = dialog
+        
+        def on_settings_finished(result):
+            if result == QDialog.Accepted:
+                # Update OSD config after settings close
+                osd.set_config(audio.osd_config)
+            dialogs['settings'] = None
+            gc.collect()
+
+        dialog.finished.connect(on_settings_finished)
+        dialog.show()
 
     def toggle_beep_setting(checked):
         audio.set_beep_enabled(checked)

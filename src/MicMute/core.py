@@ -39,6 +39,7 @@ class AudioController:
         }
         self.afk_config = {'enabled': False, 'timeout': 60}
         self.osd_config = {'enabled': False, 'duration': 1500, 'position': 'Bottom-Center', 'size': 150}
+        self.sync_ids = []
         self.BEEP_ERROR = (200, 500)
         self.load_config()
 
@@ -49,6 +50,7 @@ class AudioController:
                     data = json.load(f)
                     self.device_id = data.get('device_id')
                     self.beep_enabled = data.get('beep_enabled', True)
+                    self.sync_ids = data.get('sync_ids', [])
                     
                     saved_beeps = data.get('beep_config')
                     if saved_beeps: self.beep_config.update(saved_beeps)
@@ -73,6 +75,7 @@ class AudioController:
             with open(CONFIG_FILE, 'w') as f:
                 json.dump({
                     'device_id': self.device_id,
+                    'sync_ids': self.sync_ids,
                     'beep_enabled': self.beep_enabled,
                     'beep_config': self.beep_config,
                     'hotkey': self.hotkey_config,
@@ -99,6 +102,10 @@ class AudioController:
 
     def update_osd_config(self, new_config):
         self.osd_config = new_config
+        self.save_config()
+        
+    def update_sync_ids(self, ids):
+        self.sync_ids = ids
         self.save_config()
 
     def find_device(self):
@@ -147,20 +154,43 @@ class AudioController:
             if self.beep_enabled:
                 Beep(*self.BEEP_ERROR)
 
+    def set_device_mute(self, dev_id, state):
+        """Helper to mute a specific device by ID."""
+        try:
+            all_devices = AudioUtilities.GetAllDevices()
+            for dev in all_devices:
+                if dev.id == dev_id:
+                    dev.EndpointVolume.SetMute(state, None)
+                    return
+        except: pass
+
     def set_mute_state(self, new_state):
         if not self.volume: return
         try:
             current = self.volume.GetMute()
-            if current == new_state: return # No change needed
-
-            self.volume.SetMute(new_state, None)
             
-            if self.beep_enabled:
-                cfg = self.beep_config['mute'] if new_state else self.beep_config['unmute']
-                for _ in range(cfg['count']):
-                    Beep(cfg['freq'], cfg['duration'])
+            # Always apply if forced, or if changed
+            # But here we want to ensure sync even if main is already in state?
+            # Optimization: Only apply if changed, but for sync we might want to force slaves.
+            # Let's stick to "if changed" for main, but force slaves.
             
-            signals.update_icon.emit(new_state)
+            if current != new_state:
+                self.volume.SetMute(new_state, None)
+                
+                if self.beep_enabled:
+                    cfg = self.beep_config['mute'] if new_state else self.beep_config['unmute']
+                    for _ in range(cfg['count']):
+                        Beep(cfg['freq'], cfg['duration'])
+            
+            # Sync Slaves (Always force to match target state)
+            for slave_id in self.sync_ids:
+                if slave_id != self.device_id: # Avoid self
+                    self.set_device_mute(slave_id, new_state)
+            
+            # Emit signal AFTER syncing so UI reads correct states
+            if current != new_state:
+                signals.update_icon.emit(new_state)
+                    
         except Exception:
             if self.beep_enabled:
                 Beep(*self.BEEP_ERROR)
