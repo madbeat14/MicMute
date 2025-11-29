@@ -143,7 +143,7 @@ class MetroOSD(QWidget):
 
 # --- PERSISTENT OVERLAY ---
 try:
-    from .utils import IAudioMeterInformation, IMMDeviceEnumerator, CLSID_MMDeviceEnumerator, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL, IAudioClient, WAVEFORMATEX
+    from .utils import IAudioMeterInformation, IMMDeviceEnumerator, CLSID_MMDeviceEnumerator, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL, IAudioClient, WAVEFORMATEX, IMMDevice
     from comtypes import client
     from ctypes import POINTER, cast
     HAS_COM = True
@@ -327,30 +327,26 @@ class StatusOverlay(QWidget):
             if self.target_device_id:
                 try:
                     # GetDevice takes ID string
-                    device = enumerator.GetDevice(self.target_device_id)
+                    device_unk = enumerator.GetDevice(self.target_device_id)
+                    device = device_unk.QueryInterface(IMMDevice)
                 except Exception:
                     print(f"Could not find device with ID: {self.target_device_id}")
             
             if not device:
                 # Fallback to default
-                device = enumerator.GetDefaultAudioEndpoint(eCapture, 0) # eCapture, eConsole/0 (Role doesn't matter much for default)
+                device_unk = enumerator.GetDefaultAudioEndpoint(eCapture, 0) # eCapture, eConsole/0
+                device = device_unk.QueryInterface(IMMDevice)
             
             # Activate Meter
-            # Activate returns POINTER(POINTER(IUnknown)), so we need to dereference or cast?
-            # In our definition: (['out', 'retval'], POINTER(POINTER(IUnknown)), 'ppInterface')
-            # comtypes handles the double pointer for retval usually.
-            # But wait, our definition in utils.py for Activate returns POINTER(POINTER(IUnknown)).
-            # Let's check debug_audio.py usage:
-            # meter_unk = device.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
-            # meter = meter_unk.QueryInterface(IAudioMeterInformation)
-            
             meter_unk = device.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
-            # meter = meter_unk.QueryInterface(IAudioMeterInformation) # This fails if type is POINTER(IUnknown)
-            self.meter = cast(meter_unk, POINTER(IAudioMeterInformation))
+            self.meter = meter_unk.QueryInterface(IAudioMeterInformation)
             
             # Start Audio Client to ensure meter works
+            # This is CRITICAL: We need to initialize and start an audio stream
+            # because some devices won't report meter values unless a stream is active.
             client_unk = device.Activate(IAudioClient._iid_, CLSCTX_ALL, None)
-            self.audio_client = cast(client_unk, POINTER(IAudioClient))
+            self.audio_client = client_unk.QueryInterface(IAudioClient)
+            
             fmt = self.audio_client.GetMixFormat()
             # ShareMode=0 (Shared), Flags=0, Duration=100ms (1000000 reftimes)
             self.audio_client.Initialize(0, 0, 1000000, 0, fmt, None)

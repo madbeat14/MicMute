@@ -1,5 +1,14 @@
 
 
+## [2.6.0] - 2025-11-29
+### Fixes
+- **Voice Activity Meter**: Fixed issue where the meter would not initialize on some devices by ensuring `IAudioClient` is active.
+- **Device Names**: Fixed `Unknown Device` issue by using robust COM casting to retrieve friendly names (e.g., "Microphone (Realtek Audio)").
+- **Crash Fix**: Resolved `NameError` in `overlay.py` caused by missing import.
+
+### Debugging
+- **Debug Scripts**: Enhanced `debug_audio.py` and `debug_meter.py` with detailed comments and improved device enumeration logic.
+
 ## [2.5.0] - 2025-11-29
 ### Performance
 - **Hook Thread**: Moved Windows Keyboard Hook to a dedicated thread with its own message loop. This completely isolates input handling from the main application thread, eliminating hook timeouts.

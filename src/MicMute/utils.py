@@ -258,17 +258,24 @@ try:
             collection = enumerator.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
             count = collection.GetCount()
             for i in range(count):
-                device = collection.Item(i)
+                device_unk = collection.Item(i)
+                device = device_unk.QueryInterface(IMMDevice)
                 dev_id = device.GetId()
                 name = "Unknown Device"
                 try:
-                    props = device.OpenPropertyStore(0) # STGM_READ
+                    props_unk = device.OpenPropertyStore(0) # STGM_READ
+                    props = props_unk.QueryInterface(IPropertyStore)
                     val = props.GetValue(PKEY_Device_FriendlyName)
+                    
                     # PROPVARIANT handling
-                    if val.vt == 31: # VT_LPWSTR
-                        # val.data is c_ulonglong * 2
-                        ptr = val.data[0]
-                        name = ctypes.cast(ptr, ctypes.c_wchar_p).value
+                    # VT_LPWSTR = 31. The data is a pointer to a wide string.
+                    if val.vt == 31: 
+                        # Access the data field.
+                        # The 'data' field in our struct is c_ulonglong * 2 (16 bytes).
+                        # We cast the address of 'data' to a POINTER(c_void_p) to read the pointer value.
+                        ptr_val = ctypes.cast(ctypes.byref(val.data), POINTER(ctypes.c_void_p))[0]
+                        if ptr_val:
+                            name = ctypes.cast(ptr_val, ctypes.c_wchar_p).value
                 except Exception:
                     pass
                 devices.append({'id': dev_id, 'name': name})
