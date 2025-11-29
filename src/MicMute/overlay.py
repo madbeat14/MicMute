@@ -5,7 +5,17 @@ from PySide6.QtSvg import QSvgRenderer
 import ctypes
 
 class MetroOSD(QWidget):
+    """
+    A Windows 10/11 Metro-style On-Screen Display (OSD) for mute status.
+    """
     def __init__(self, icon_unmuted_path, icon_muted_path):
+        """
+        Initializes the OSD widget.
+        
+        Args:
+            icon_unmuted_path (str): Path to the unmuted icon.
+            icon_muted_path (str): Path to the muted icon.
+        """
         super().__init__()
         
         # Window Flags
@@ -25,7 +35,6 @@ class MetroOSD(QWidget):
         self.radius = 10
         
         # Icons
-        # Icons
         self.icon_unmuted_path = icon_unmuted_path
         self.icon_muted_path = icon_muted_path
         
@@ -42,11 +51,13 @@ class MetroOSD(QWidget):
         
         # Animation
         self.opacity_anim = QPropertyAnimation(self, b"windowOpacity")
-        self.opacity_anim.setDuration(150) # Fade In
+        # Fade In
+        self.opacity_anim.setDuration(150)
         self.opacity_anim.setEasingCurve(QEasingCurve.OutQuad)
         
         self.fade_out_anim = QPropertyAnimation(self, b"windowOpacity")
-        self.fade_out_anim.setDuration(500) # Fade Out
+        # Fade Out
+        self.fade_out_anim.setDuration(500)
         self.fade_out_anim.setEasingCurve(QEasingCurve.InQuad)
         self.fade_out_anim.finished.connect(self.hide)
         
@@ -59,14 +70,27 @@ class MetroOSD(QWidget):
         self.position = "Bottom-Center"
         
     def set_config(self, config):
+        """
+        Updates the OSD configuration.
+        
+        Args:
+            config (dict): Configuration dictionary.
+        """
         self.duration = config.get('duration', 1500)
         self.position = config.get('position', 'Bottom-Center')
         self.osd_size = config.get('size', 150)
         self.resize(self.osd_size, self.osd_size)
         
     def show_osd(self, is_muted):
+        """
+        Displays the OSD with the current mute state.
+        
+        Args:
+            is_muted (bool): True if muted, False otherwise.
+        """
         self.current_renderer = self.renderer_muted if is_muted else self.renderer_unmuted
-        self.update() # Trigger repaint with new icon
+        # Trigger repaint with new icon
+        self.update()
         
         # Reset Timer
         self.hide_timer.stop()
@@ -74,7 +98,8 @@ class MetroOSD(QWidget):
         
         if not self.isVisible():
             self.setWindowOpacity(0.0)
-            self.reposition() # Position before showing
+            # Position before showing
+            self.reposition()
             self.show()
             
             # Fade In
@@ -83,16 +108,23 @@ class MetroOSD(QWidget):
             self.opacity_anim.start()
         else:
             self.setWindowOpacity(1.0)
-            self.reposition() # Ensure position is correct if config changed
+            # Ensure position is correct if config changed
+            self.reposition()
             
         self.hide_timer.start(self.duration)
         
     def start_fade_out(self):
+        """
+        Starts the fade-out animation.
+        """
         self.fade_out_anim.setStartValue(1.0)
         self.fade_out_anim.setEndValue(0.0)
         self.fade_out_anim.start()
         
     def reposition(self):
+        """
+        Calculates and sets the OSD position based on configuration.
+        """
         # Get screen where cursor is, or primary
         cursor_pos = QCursor.pos()
         screen = QApplication.screenAt(cursor_pos)
@@ -101,7 +133,8 @@ class MetroOSD(QWidget):
             
         geo = screen.geometry()
         w, h = self.width(), self.height()
-        margin = 40 # Standard margin
+        # Standard margin
+        margin = 40
         
         # Calculate X
         if "Left" in self.position:
@@ -118,13 +151,17 @@ class MetroOSD(QWidget):
             y = geo.y() + geo.height() - h - margin
             # Special case: Windows flyout is usually a bit higher, but we stick to margin for consistency
             if self.position == "Bottom-Center":
-                y = geo.y() + geo.height() - h - 100 # Slightly higher for Bottom-Center
+                # Slightly higher for Bottom-Center
+                y = geo.y() + geo.height() - h - 100
         else: # Middle/Center
             y = geo.y() + (geo.height() - h) // 2
             
         self.move(x, y)
         
     def paintEvent(self, event):
+        """
+        Handles the paint event to draw the OSD background and icon.
+        """
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
@@ -153,9 +190,20 @@ except ImportError:
 from PySide6.QtWidgets import QProgressBar, QHBoxLayout
 
 class StatusOverlay(QWidget):
+    """
+    A persistent overlay widget showing microphone status and voice activity.
+    """
+    # Signal emitted when configuration changes (e.g. position)
     config_changed = Signal(dict)
 
     def __init__(self, icon_unmuted_path, icon_muted_path):
+        """
+        Initializes the overlay widget.
+        
+        Args:
+            icon_unmuted_path (str): Path to the unmuted icon.
+            icon_muted_path (str): Path to the muted icon.
+        """
         super().__init__()
         
         self.setWindowFlags(
@@ -206,7 +254,8 @@ class StatusOverlay(QWidget):
         # Audio Meter
         self.meter = None
         self.meter_timer = QTimer()
-        self.meter_timer.setInterval(50) # 20Hz
+        # 20Hz
+        self.meter_timer.setInterval(50)
         self.meter_timer.timeout.connect(self.sample_audio)
         
         self.resize(60, 40)
@@ -214,10 +263,17 @@ class StatusOverlay(QWidget):
         self.position_mode = 'Custom'
         self.locked = False
         self.current_config = {}
-        self.sensitivity = 0.05 # Default 5%
+        # Default 5%
+        self.sensitivity = 0.05
         self.is_active = False
         
     def set_config(self, config):
+        """
+        Updates the overlay configuration.
+        
+        Args:
+            config (dict): Configuration dictionary.
+        """
         self.current_config = config.copy()
         if not config.get('enabled', False):
             self.hide()
@@ -251,9 +307,16 @@ class StatusOverlay(QWidget):
             self.reposition_predefined()
         
         self.show()
-        self.update_status(self.is_muted) # Refresh state
+        # Refresh state
+        self.update_status(self.is_muted)
 
     def set_target_device(self, device_id):
+        """
+        Sets the target device for the VU meter.
+        
+        Args:
+            device_id (str): The ID of the device to monitor.
+        """
         self.target_device_id = device_id
         # Restart meter if running to switch device
         if self.meter_timer.isActive():
@@ -261,6 +324,9 @@ class StatusOverlay(QWidget):
             self.start_meter()
 
     def reposition_predefined(self):
+        """
+        Moves the overlay to a predefined position on the screen.
+        """
         cursor_pos = QCursor.pos()
         screen = QApplication.screenAt(cursor_pos)
         if not screen:
@@ -291,6 +357,12 @@ class StatusOverlay(QWidget):
         self.move(x, y)
 
     def update_status(self, is_muted):
+        """
+        Updates the visual status of the overlay.
+        
+        Args:
+            is_muted (bool): True if muted, False otherwise.
+        """
         self.is_muted = is_muted
         
         # Update Icon
@@ -306,16 +378,26 @@ class StatusOverlay(QWidget):
             self.start_meter()
 
     def set_active(self, active):
+        """
+        Updates the activity LED state.
+        
+        Args:
+            active (bool): True if voice activity is detected.
+        """
         if self.is_active == active: return
         self.is_active = active
         
-        color = "#00FF00" if active else "transparent" # Bright Green or Transparent
+        # Bright Green or Transparent
+        color = "#00FF00" if active else "transparent"
         self.led_dot.setStyleSheet(f"""
             background-color: {color};
             border-radius: 5px;
         """)
 
     def start_meter(self):
+        """
+        Starts the audio meter for the target device.
+        """
         if not HAS_COM: return
         if self.meter_timer.isActive(): return
         
@@ -334,7 +416,8 @@ class StatusOverlay(QWidget):
             
             if not device:
                 # Fallback to default
-                device_unk = enumerator.GetDefaultAudioEndpoint(eCapture, 0) # eCapture, eConsole/0
+                # eCapture, eConsole/0
+                device_unk = enumerator.GetDefaultAudioEndpoint(eCapture, 0)
                 device = device_unk.QueryInterface(IMMDevice)
             
             # Activate Meter
@@ -358,6 +441,9 @@ class StatusOverlay(QWidget):
             pass
 
     def stop_meter(self):
+        """
+        Stops the audio meter and releases resources.
+        """
         self.meter_timer.stop()
         self.meter = None
         
@@ -372,6 +458,9 @@ class StatusOverlay(QWidget):
 
     @Slot()
     def sample_audio(self):
+        """
+        Samples the audio meter for peak value and updates the LED.
+        """
         if not self.meter: return
         try:
             # GetPeakValue returns the float value directly because of ['out'] parameter
@@ -386,17 +475,26 @@ class StatusOverlay(QWidget):
 
     # Dragging Logic
     def mousePressEvent(self, event):
+        """
+        Handles mouse press for dragging.
+        """
         if self.locked: return
         if event.button() == Qt.LeftButton:
             self.dragging = True
             self.offset = event.globalPos() - self.pos()
 
     def mouseMoveEvent(self, event):
+        """
+        Handles mouse move for dragging.
+        """
         if self.locked: return
         if self.dragging and self.offset:
             self.move(event.globalPos() - self.offset)
 
     def mouseReleaseEvent(self, event):
+        """
+        Handles mouse release to save new position.
+        """
         if self.dragging:
             self.dragging = False
             # Save new position and switch to Custom mode
@@ -406,5 +504,8 @@ class StatusOverlay(QWidget):
             self.config_changed.emit(self.current_config)
 
     def closeEvent(self, event):
+        """
+        Handles the close event to ensure cleanup.
+        """
         self.stop_meter()
         super().closeEvent(event)

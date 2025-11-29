@@ -16,7 +16,7 @@ from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "2.8.1"
+VERSION = "2.8.2"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -34,6 +34,10 @@ SVG_BLACK_UNMUTED = os.path.join(ASSETS_DIR, "mic_black.svg")
 SVG_BLACK_MUTED = os.path.join(ASSETS_DIR, "mic_muted_black.svg")
 
 def main():
+    """
+    Main entry point for the MicMute application.
+    Initializes the Qt application, audio controller, tray icon, and background threads.
+    """
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
@@ -62,6 +66,16 @@ def main():
     overlay.config_changed.connect(audio.update_persistent_overlay)
     
     def get_current_icon(muted, light_theme):
+        """
+        Determines the appropriate icon based on mute state and theme.
+        
+        Args:
+            muted (bool): Current mute state.
+            light_theme (bool): True if system is in light mode.
+            
+        Returns:
+            QIcon: The appropriate QIcon object.
+        """
         if light_theme: return icon_black_muted if muted else icon_black_unmuted
         else: return icon_white_muted if muted else icon_white_unmuted
 
@@ -76,20 +90,25 @@ def main():
     from .utils import HookThread
     hook_thread = HookThread(signals, audio.hotkey_config)
     hook_thread.start()
-    hook_thread.ready_event.wait(2.0) # Wait for hook to install
+    # Wait for hook to install
+    hook_thread.ready_event.wait(2.0)
     
     # Menu Functions
     # Dialog Instances
     dialogs = {'settings': None}
 
     def populate_devices_menu():
+        """
+        Populates the device selection submenu with available microphones.
+        """
         submenu_devices.clear()
         
         try:
             # Get All Devices
             all_devices_raw = AudioUtilities.GetAllDevices()
             enumerator = AudioUtilities.GetDeviceEnumerator()
-            collection = enumerator.EnumAudioEndpoints(1, 1) # eCapture, eAll
+            # eCapture, eAll
+            collection = enumerator.EnumAudioEndpoints(1, 1)
             count = collection.GetCount()
             capture_ids = set()
             for i in range(count):
@@ -134,6 +153,9 @@ def main():
             submenu_devices.addAction(error_action)
 
     def show_settings_dialog():
+        """
+        Displays the settings dialog, initializing it if necessary.
+        """
         # Lazy Import to save startup memory
         from .gui import SettingsDialog
         
@@ -159,13 +181,21 @@ def main():
             
             # Explicit Cleanup
             dialogs['settings'] = None
-            dialog.deleteLater() # Schedule C++ deletion
-            gc.collect() # Force Python GC
+            # Schedule C++ deletion
+            dialog.deleteLater()
+            # Force Python GC
+            gc.collect()
 
         dialog.finished.connect(on_settings_finished)
         dialog.show()
 
     def toggle_beep_setting(checked):
+        """
+        Toggles the beep sound setting.
+        
+        Args:
+            checked (bool): New state of the beep setting.
+        """
         audio.set_beep_enabled(checked)
 
     menu = QMenu()
@@ -201,6 +231,12 @@ def main():
 
     # Updates
     def update_tray_state(is_muted=None):
+        """
+        Updates the tray icon and tooltip based on the current state.
+        
+        Args:
+            is_muted (bool, optional): The new mute state. If None, uses current state.
+        """
         nonlocal current_mute_state, is_light_theme
         if is_muted is not None: current_mute_state = is_muted
         new_theme = is_system_light_theme()
@@ -222,6 +258,12 @@ def main():
     signals.exit_app.connect(app.quit)
     
     def on_device_changed(new_id):
+        """
+        Handles changes to the default audio device.
+        
+        Args:
+            new_id (str): The ID of the new default device.
+        """
         print(f"Default Device Changed: {new_id}")
         # Automatically switch to the new default device
         if audio.set_device_by_id(new_id):
@@ -237,6 +279,9 @@ def main():
     afk_timer.setSingleShot(True)
 
     def schedule_afk_check():
+        """
+        Schedules the next AFK check based on the configured timeout.
+        """
         if not audio.afk_config.get('enabled', False):
             afk_timer.stop()
             return
@@ -267,6 +312,12 @@ def main():
         afk_timer.start(next_interval)
 
     def on_afk_config_changed(new_config):
+        """
+        Callback for when AFK configuration changes.
+        
+        Args:
+            new_config (dict): The new AFK configuration.
+        """
         # Re-evaluate timer when config changes
         schedule_afk_check()
 
@@ -286,6 +337,9 @@ def main():
     event_timer.setInterval(10)
     
     def process_events():
+        """
+        Processes events from the keyboard hook queue on the main thread.
+        """
         # Access queue via hook_thread.hook
         if hook_thread.hook and not hook_thread.hook.event_queue.empty():
             try:

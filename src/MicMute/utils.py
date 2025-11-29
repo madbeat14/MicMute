@@ -9,10 +9,15 @@ WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101
 WM_SYSKEYDOWN = 0x0104
 WM_SYSKEYUP = 0x0105
-VK_LMENU = 0xA4 # Left Alt
-VK_RMENU = 0xA5 # Right Alt
+# Left Alt
+VK_LMENU = 0xA4
+# Right Alt
+VK_RMENU = 0xA5
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
+    """
+    Structure for low-level keyboard hook events.
+    """
     _fields_ = [
         ("vkCode", wintypes.DWORD),
         ("scanCode", wintypes.DWORD),
@@ -22,6 +27,9 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 class LASTINPUTINFO(Structure):
+    """
+    Structure for tracking system idle time.
+    """
     _fields_ = [
         ('cbSize', wintypes.UINT),
         ('dwTime', wintypes.DWORD),
@@ -34,6 +42,12 @@ user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
 def is_system_light_theme():
+    """
+    Checks if the Windows system theme is set to Light mode.
+    
+    Returns:
+        bool: True if Light theme is active, False otherwise.
+    """
     try:
         registry = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
         key = winreg.OpenKey(registry, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
@@ -77,7 +91,16 @@ def set_high_priority():
 
 # --- NATIVE KEYBOARD HOOK ---
 class NativeKeyboardHook:
+    """
+    Manages a low-level keyboard hook to intercept global hotkeys.
+    """
     def __init__(self, signals):
+        """
+        Initializes the keyboard hook.
+        
+        Args:
+            signals (MuteSignals): The signals object to emit events to.
+        """
         self.signals = signals
         self.hook_id = None
         self.hook_proc = HOOKPROC(self._hook_callback)
@@ -108,16 +131,31 @@ class NativeKeyboardHook:
                            self.mute_vk != 0)
         
     def set_target_vk(self, vk):
+        """
+        Sets the target virtual key code for the toggle action.
+        
+        Args:
+            vk (int): The virtual key code.
+        """
         # Legacy support / Fallback
         self.toggle_vk = vk
 
     def start_recording(self):
+        """
+        Enables key recording mode to capture the next key press.
+        """
         self.recording_mode = True
 
     def stop_recording(self):
+        """
+        Disables key recording mode.
+        """
         self.recording_mode = False
 
     def install(self):
+        """
+        Installs the low-level keyboard hook.
+        """
         h_mod = 0
         self.hook_id = user32.SetWindowsHookExW(
             WH_KEYBOARD_LL,
@@ -130,6 +168,9 @@ class NativeKeyboardHook:
             print(f"Failed to install keyboard hook. Error Code: {error_code}")
 
     def uninstall(self):
+        """
+        Removes the low-level keyboard hook.
+        """
         if self.hook_id:
             user32.UnhookWindowsHookEx(self.hook_id)
             self.hook_id = None
@@ -144,7 +185,8 @@ class NativeKeyboardHook:
             # Recording Mode
             if self.recording_mode and is_down:
                 self.signals.key_recorded.emit(vk)
-                return 1 # Consume event
+                # Consume event
+                return 1
 
             # Hotkey Logic
             # 1. Toggle Key (Always active if mode is toggle, OR if collision in separate mode)
@@ -188,7 +230,17 @@ class NativeKeyboardHook:
 import threading
 
 class HookThread(threading.Thread):
+    """
+    Dedicated thread for running the keyboard hook message loop.
+    """
     def __init__(self, signals, config):
+        """
+        Initializes the hook thread.
+        
+        Args:
+            signals (MuteSignals): Signals object.
+            config (dict): Initial hotkey configuration.
+        """
         super().__init__(daemon=True)
         self.signals = signals
         self.config = config
@@ -197,6 +249,9 @@ class HookThread(threading.Thread):
         self.ready_event = threading.Event()
 
     def run(self):
+        """
+        Runs the thread, installing the hook and starting the message pump.
+        """
         self.thread_id = kernel32.GetCurrentThreadId()
         self.hook = NativeKeyboardHook(self.signals)
         self.hook.update_config(self.config)
@@ -212,11 +267,21 @@ class HookThread(threading.Thread):
         self.hook.uninstall()
 
     def stop(self):
+        """
+        Stops the thread and uninstalls the hook.
+        """
         if self.thread_id:
-            user32.PostThreadMessageW(self.thread_id, 0x0012, 0, 0) # WM_QUIT
+            # WM_QUIT
+            user32.PostThreadMessageW(self.thread_id, 0x0012, 0, 0)
             self.join(1.0)
 
     def update_config(self, config):
+        """
+        Updates the hook configuration safely.
+        
+        Args:
+            config (dict): New configuration.
+        """
         if self.hook:
             self.hook.update_config(config)
 
@@ -237,9 +302,18 @@ try:
     from comtypes import client, GUID, COMObject
 
     class DeviceChangeListener(COMObject):
+        """
+        COM Object for receiving audio device notifications.
+        """
         _com_interfaces_ = [IMMNotificationClient]
 
         def __init__(self, callback):
+            """
+            Initializes the listener.
+            
+            Args:
+                callback (callable): Function to call on default device change.
+            """
             super().__init__()
             self.callback = callback
 
@@ -253,7 +327,11 @@ try:
             pass
 
         def OnDefaultDeviceChanged(self, flow, role, pwstrDefaultDeviceId):
-            if flow == eCapture and role == eConsole: # eConsole is usually the system default
+            """
+            Callback when the default audio device changes.
+            """
+            # eConsole is usually the system default
+            if flow == eCapture and role == eConsole:
                 if self.callback:
                     self.callback(pwstrDefaultDeviceId)
 
@@ -261,21 +339,39 @@ try:
             pass
 
     def set_default_device(device_id):
+        """
+        Sets the system default audio device using undocumented PolicyConfig.
+        
+        Args:
+            device_id (str): The ID of the device to set as default.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
         try:
             policy_config = client.CreateObject(
                 CLSID_PolicyConfig,
                 interface=IPolicyConfig
             )
             # Role: 0=eConsole, 1=eMultimedia, 2=eCommunications
-            policy_config.SetDefaultEndpoint(device_id, 0) # Console
-            policy_config.SetDefaultEndpoint(device_id, 1) # Multimedia
-            policy_config.SetDefaultEndpoint(device_id, 2) # Communications
+            # Console
+            policy_config.SetDefaultEndpoint(device_id, 0)
+            # Multimedia
+            policy_config.SetDefaultEndpoint(device_id, 1)
+            # Communications
+            policy_config.SetDefaultEndpoint(device_id, 2)
             return True
         except Exception as e:
             print(f"Failed to set default device: {e}")
             return False
 
     def get_audio_devices():
+        """
+        Enumerates all active audio capture devices.
+        
+        Returns:
+            list: List of dicts {'id': str, 'name': str}.
+        """
         devices = []
         try:
             enumerator = client.CreateObject(CLSID_MMDeviceEnumerator, interface=IMMDeviceEnumerator)
@@ -286,10 +382,12 @@ try:
                 dev_id = device.GetId()
                 name = "Unknown Device"
                 try:
-                    props = device.OpenPropertyStore(0) # STGM_READ
+                    # STGM_READ
+                    props = device.OpenPropertyStore(0)
                     val = props.GetValue(PKEY_Device_FriendlyName)
                     # PROPVARIANT handling
-                    if val.vt == 31: # VT_LPWSTR
+                    # VT_LPWSTR
+                    if val.vt == 31:
                         # val.data is c_ulonglong * 2
                         ptr = val.data[0]
                         name = ctypes.cast(ptr, ctypes.c_wchar_p).value

@@ -1,5 +1,10 @@
 
 
+## [2.8.2] - 2025-11-29
+### Documentation
+- **Comprehensive Docstrings**: Added standard Python docstrings to all classes and functions in `core.py`, `gui.py`, `main.py`, `overlay.py`, and `utils.py`.
+- **PEP 8 Comments**: Refactored inline comments to the preceding line across the codebase for improved readability and PEP 8 compliance.
+
 ## [2.8.1] - 2025-11-29
 ### Tests
 - **Comprehensive Test Suite**: Implemented full unit test coverage for Core, GUI, Overlay, and Utility components (22 tests).

@@ -29,6 +29,9 @@ VK_MAP = {
 
 # --- THEME DETECTION (EVENT DRIVEN) ---
 class ThemeListener(QWidget):
+    """
+    Hidden widget that listens for system theme change events.
+    """
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)
@@ -36,15 +39,35 @@ class ThemeListener(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating)
     
     def nativeEvent(self, eventType, message):
+        """
+        Handles native Windows events to detect theme changes.
+        
+        Args:
+            eventType (bytes): The type of event.
+            message (int): The message pointer.
+            
+        Returns:
+            tuple: Result of the superclass nativeEvent.
+        """
         msg = ctypes.wintypes.MSG.from_address(message.__int__())
-        if msg.message == 0x001A: # WM_SETTINGCHANGE
+        # WM_SETTINGCHANGE
+        if msg.message == 0x001A:
             signals.theme_changed.emit()
         return super().nativeEvent(eventType, message)
 
 # --- WIDGETS ---
 
 class DeviceSelectionWidget(QWidget):
+    """
+    Widget for listing and selecting audio devices.
+    """
     def __init__(self, parent=None):
+        """
+        Initializes the device selection widget.
+        
+        Args:
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         layout = QVBoxLayout(self)
         
@@ -55,10 +78,14 @@ class DeviceSelectionWidget(QWidget):
         
         # Column Resizing
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents) # Default Indicator
-        header.setSectionResizeMode(1, QHeaderView.Stretch)          # Name
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # Status
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # Sync
+        # Default Indicator
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        # Name
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        # Status
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        # Sync
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -73,8 +100,10 @@ class DeviceSelectionWidget(QWidget):
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
         
-        self.devices_map = {} # Row -> Device ID
-        self.device_objects = {} # ID -> Device Object (for status updates)
+        # Row -> Device ID
+        self.devices_map = {}
+        # ID -> Device Object (for status updates)
+        self.device_objects = {}
         
         # Listen for external updates
         signals.update_icon.connect(self.update_status_ui)
@@ -83,6 +112,9 @@ class DeviceSelectionWidget(QWidget):
         self.refresh_devices()
 
     def refresh_devices(self):
+        """
+        Refreshes the list of available audio devices.
+        """
         self.table.setRowCount(0)
         self.devices_map.clear()
         self.device_objects.clear()
@@ -93,7 +125,8 @@ class DeviceSelectionWidget(QWidget):
             
             # 2. Get Capture IDs for filtering
             enumerator = AudioUtilities.GetDeviceEnumerator()
-            collection = enumerator.EnumAudioEndpoints(1, 1) # eCapture, eAll
+            # eCapture, eAll
+            collection = enumerator.EnumAudioEndpoints(1, 1)
             count = collection.GetCount()
             capture_ids = set()
             for i in range(count):
@@ -110,7 +143,8 @@ class DeviceSelectionWidget(QWidget):
             # 3. Identify Default/Master
             # Always prioritize the actual Windows System Default
             try:
-                default_dev = enumerator.GetDefaultAudioEndpoint(1, 0) # eCapture, eConsole
+                # eCapture, eConsole
+                default_dev = enumerator.GetDefaultAudioEndpoint(1, 0)
                 windows_default_id = default_dev.GetId()
                 
                 # Update App Master to match Windows Default
@@ -153,7 +187,8 @@ class DeviceSelectionWidget(QWidget):
                 # Col 0: Default Indicator
                 def_item = QTableWidgetItem()
                 if is_master:
-                    def_item.setText("★") # Star for default
+                    # Star for default
+                    def_item.setText("★")
                     def_item.setForeground(QColor("gold"))
                     def_item.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(row, 0, def_item)
@@ -201,6 +236,13 @@ class DeviceSelectionWidget(QWidget):
             gc.collect()
 
     def on_sync_toggled(self, dev_id, checked):
+        """
+        Handles toggling of device synchronization.
+        
+        Args:
+            dev_id (str): The ID of the device.
+            checked (bool): New checked state.
+        """
         if checked:
             if dev_id not in audio.sync_ids:
                 audio.sync_ids.append(dev_id)
@@ -210,6 +252,12 @@ class DeviceSelectionWidget(QWidget):
                 audio.sync_ids.remove(dev_id)
 
     def show_context_menu(self, pos):
+        """
+        Shows context menu for device table items.
+        
+        Args:
+            pos (QPoint): Position of the click.
+        """
         item = self.table.itemAt(pos)
         if not item: return
         
@@ -226,6 +274,12 @@ class DeviceSelectionWidget(QWidget):
         menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def set_as_default(self, dev_id):
+        """
+        Sets the specified device as the system default.
+        
+        Args:
+            dev_id (str): The ID of the device to set as default.
+        """
         if set_default_device(dev_id):
             if audio.set_device_by_id(dev_id):
                 self.refresh_devices()
@@ -235,6 +289,12 @@ class DeviceSelectionWidget(QWidget):
             QMessageBox.warning(self, "Error", "Failed to set Windows default device.")
 
     def update_status_ui(self, is_muted):
+        """
+        Updates the mute status in the UI for all devices.
+        
+        Args:
+            is_muted (bool): Global mute state (unused, checks individual devices).
+        """
         for row in range(self.table.rowCount()):
             dev_id = self.devices_map.get(row)
             if not dev_id: continue
@@ -248,6 +308,12 @@ class DeviceSelectionWidget(QWidget):
                 except: pass
 
     def get_sync_ids(self):
+        """
+        Retrieves the list of device IDs selected for synchronization.
+        
+        Returns:
+            list: List of device ID strings.
+        """
         ids = []
         for row in range(self.table.rowCount()):
             widget = self.table.cellWidget(row, 3)
@@ -260,10 +326,26 @@ class DeviceSelectionWidget(QWidget):
         return ids
     
     def get_selected_device_id(self):
+        """
+        Placeholder for compatibility.
+        
+        Returns:
+            None
+        """
         return None
 
 class BeepSettingsWidget(QWidget):
+    """
+    Widget for configuring beep sounds and custom audio files.
+    """
     def __init__(self, audio_controller, parent=None):
+        """
+        Initializes the beep settings widget.
+        
+        Args:
+            audio_controller (AudioController): The main audio controller instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.audio = audio_controller
         layout = QVBoxLayout(self)
@@ -353,6 +435,12 @@ class BeepSettingsWidget(QWidget):
         layout.addWidget(unmute_group)
 
     def browse_sound(self, sound_type):
+        """
+        Opens a file dialog to select a custom sound file.
+        
+        Args:
+            sound_type (str): 'mute' or 'unmute'.
+        """
         path, _ = QFileDialog.getOpenFileName(self, "Select Sound File", "", "Audio Files (*.wav *.mp3)")
         if path:
             if sound_type == 'mute':
@@ -361,6 +449,12 @@ class BeepSettingsWidget(QWidget):
                 self.unmute_path.setText(path)
 
     def preview_sound(self, sound_type):
+        """
+        Previews the selected sound (custom or beep).
+        
+        Args:
+            sound_type (str): 'mute' or 'unmute'.
+        """
         # Temporarily use the path from UI to preview
         path = self.mute_path.text() if sound_type == 'mute' else self.unmute_path.text()
         if path and os.path.exists(path):
@@ -375,6 +469,9 @@ class BeepSettingsWidget(QWidget):
             else: self.test_unmute()
 
     def test_mute(self):
+        """
+        Plays the configured mute beep sequence.
+        """
         freq = self.mute_freq.value()
         dur = self.mute_dur.value()
         count = self.mute_count.value()
@@ -382,6 +479,9 @@ class BeepSettingsWidget(QWidget):
             Beep(freq, dur)
 
     def test_unmute(self):
+        """
+        Plays the configured unmute beep sequence.
+        """
         freq = self.unmute_freq.value()
         dur = self.unmute_dur.value()
         count = self.unmute_count.value()
@@ -389,6 +489,12 @@ class BeepSettingsWidget(QWidget):
             Beep(freq, dur)
 
     def get_config(self):
+        """
+        Retrieves the current beep and sound configuration.
+        
+        Returns:
+            dict: Configuration dictionary.
+        """
         return {
             'beep': {
                 'mute': {
@@ -409,7 +515,19 @@ class BeepSettingsWidget(QWidget):
         }
 
 class SingleHotkeyInputWidget(QWidget):
+    """
+    Widget for capturing and setting a single hotkey.
+    """
     def __init__(self, label_text, initial_vk, hook, parent=None):
+        """
+        Initializes the hotkey input widget.
+        
+        Args:
+            label_text (str): Label for the input.
+            initial_vk (int): Initial virtual key code.
+            hook (NativeKeyboardHook): The keyboard hook instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.hook = hook
         self.current_vk = initial_vk
@@ -450,9 +568,18 @@ class SingleHotkeyInputWidget(QWidget):
         signals.key_recorded.connect(self.on_key_recorded)
 
     def on_combo_change(self, index):
+        """
+        Handles changes in the hotkey dropdown.
+        
+        Args:
+            index (int): Selected index.
+        """
         self.current_vk = self.combo.itemData(index)
 
     def start_capture(self):
+        """
+        Starts capturing a key press for hotkey assignment.
+        """
         self.capture_btn.setText("...")
         self.capture_btn.setEnabled(False)
         # We need a way to know WHICH widget requested capture.
@@ -462,6 +589,12 @@ class SingleHotkeyInputWidget(QWidget):
         self.hook.start_recording()
 
     def on_key_recorded(self, vk):
+        """
+        Callback when a key is recorded during capture.
+        
+        Args:
+            vk (int): The virtual key code recorded.
+        """
         if not getattr(self, 'is_capturing', False):
             return
             
@@ -480,16 +613,36 @@ class SingleHotkeyInputWidget(QWidget):
         self.combo.setCurrentIndex(index)
 
     def get_config(self):
+        """
+        Retrieves the configured hotkey.
+        
+        Returns:
+            dict: Hotkey configuration {'vk': int, 'name': str}.
+        """
         name = VK_MAP.get(self.current_vk, f"Key {self.current_vk}")
         return {'vk': self.current_vk, 'name': name}
     
     def cleanup(self):
+        """
+        Disconnects signals to prevent memory leaks.
+        """
         try:
             signals.key_recorded.disconnect(self.on_key_recorded)
         except: pass
 
 class HotkeySettingsWidget(QWidget):
+    """
+    Widget for configuring global hotkeys (Toggle or Separate).
+    """
     def __init__(self, audio_controller, hook, parent=None):
+        """
+        Initializes the hotkey settings widget.
+        
+        Args:
+            audio_controller (AudioController): The main audio controller instance.
+            hook (NativeKeyboardHook): The keyboard hook instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.audio = audio_controller
         self.hook = hook
@@ -558,6 +711,12 @@ class HotkeySettingsWidget(QWidget):
         self.mode_group_btn.idToggled.connect(self.stack.setCurrentIndex)
 
     def get_config(self):
+        """
+        Retrieves the current hotkey configuration.
+        
+        Returns:
+            dict: Hotkey configuration dictionary.
+        """
         mode = 'separate' if self.mode_separate.isChecked() else 'toggle'
         return {
             'mode': mode,
@@ -567,12 +726,25 @@ class HotkeySettingsWidget(QWidget):
         }
     
     def cleanup(self):
+        """
+        Cleans up child widgets.
+        """
         self.input_toggle.cleanup()
         self.input_mute.cleanup()
         self.input_unmute.cleanup()
 
 class AfkSettingsWidget(QWidget):
+    """
+    Widget for configuring AFK (Away From Keyboard) timeout settings.
+    """
     def __init__(self, audio_controller, parent=None):
+        """
+        Initializes the AFK settings widget.
+        
+        Args:
+            audio_controller (AudioController): The main audio controller instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.audio = audio_controller
         layout = QFormLayout(self)
@@ -581,7 +753,8 @@ class AfkSettingsWidget(QWidget):
         self.enabled_cb.setChecked(self.audio.afk_config.get('enabled', False))
         
         self.timeout_spin = QSpinBox()
-        self.timeout_spin.setRange(10, 3600) # 10s to 1 hour
+        # 10s to 1 hour
+        self.timeout_spin.setRange(10, 3600)
         self.timeout_spin.setValue(self.audio.afk_config.get('timeout', 60))
         self.timeout_spin.setSuffix(" seconds")
         
@@ -593,13 +766,29 @@ class AfkSettingsWidget(QWidget):
         self.enabled_cb.toggled.connect(self.timeout_spin.setEnabled)
 
     def get_config(self):
+        """
+        Retrieves the current AFK configuration.
+        
+        Returns:
+            dict: AFK configuration dictionary.
+        """
         return {
             'enabled': self.enabled_cb.isChecked(),
             'timeout': self.timeout_spin.value()
         }
 
 class OsdSettingsWidget(QWidget):
+    """
+    Widget for configuring On-Screen Display (OSD) settings.
+    """
     def __init__(self, audio_controller, parent=None):
+        """
+        Initializes the OSD settings widget.
+        
+        Args:
+            audio_controller (AudioController): The main audio controller instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.audio = audio_controller
         layout = QFormLayout(self)
@@ -637,6 +826,12 @@ class OsdSettingsWidget(QWidget):
         layout.addRow("Position:", self.position_combo)
         
     def get_config(self):
+        """
+        Retrieves the current OSD configuration.
+        
+        Returns:
+            dict: OSD configuration dictionary.
+        """
         return {
             'enabled': self.enabled_cb.isChecked(),
             'size': self.size_spin.value(),
@@ -645,7 +840,17 @@ class OsdSettingsWidget(QWidget):
         }
 
 class PersistentOverlaySettingsWidget(QWidget):
+    """
+    Widget for configuring the persistent overlay settings.
+    """
     def __init__(self, audio_controller, parent=None):
+        """
+        Initializes the overlay settings widget.
+        
+        Args:
+            audio_controller (AudioController): The main audio controller instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.audio = audio_controller
         layout = QFormLayout(self)
@@ -692,7 +897,8 @@ class PersistentOverlaySettingsWidget(QWidget):
         
         # Sensitivity Control
         self.sensitivity_slider = QSlider(Qt.Horizontal)
-        self.sensitivity_slider.setRange(1, 50) # 1% to 50% threshold
+        # 1% to 50% threshold
+        self.sensitivity_slider.setRange(1, 50)
         self.sensitivity_slider.setValue(self.audio.persistent_overlay.get('sensitivity', 5))
         self.sensitivity_label = QLabel(f"{self.sensitivity_slider.value()}%")
         self.sensitivity_slider.valueChanged.connect(lambda v: self.sensitivity_label.setText(f"{v}%"))
@@ -733,6 +939,12 @@ class PersistentOverlaySettingsWidget(QWidget):
         self.vu_cb.toggled.connect(update_sens_enable)
 
     def get_config(self):
+        """
+        Retrieves the current overlay configuration.
+        
+        Returns:
+            dict: Overlay configuration dictionary.
+        """
         return {
             'enabled': self.enabled_cb.isChecked(),
             'show_vu': self.vu_cb.isChecked(),
@@ -747,7 +959,18 @@ class PersistentOverlaySettingsWidget(QWidget):
 
 # --- MAIN SETTINGS DIALOG ---
 class SettingsDialog(QDialog):
+    """
+    Main settings dialog containing all configuration tabs.
+    """
     def __init__(self, audio_controller, hook, parent=None):
+        """
+        Initializes the settings dialog.
+        
+        Args:
+            audio_controller (AudioController): The main audio controller instance.
+            hook (NativeKeyboardHook): The keyboard hook instance.
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.audio = audio_controller
         self.hook = hook
@@ -815,6 +1038,9 @@ class SettingsDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def save_settings(self):
+        """
+        Saves all settings from all tabs to the configuration.
+        """
         # 1. Device
         new_dev_id = self.device_widget.get_selected_device_id()
         if new_dev_id:
@@ -843,12 +1069,27 @@ class SettingsDialog(QDialog):
         self.accept()
         
     def closeEvent(self, event):
+        """
+        Handles the close event to ensure cleanup.
+        
+        Args:
+            event (QCloseEvent): The close event.
+        """
         self.hotkey_widget.cleanup()
         super().closeEvent(event)
 
 # --- LEGACY WRAPPERS (For backwards compatibility / Tray Actions) ---
 class DeviceSelectionDialog(QDialog):
+    """
+    Legacy dialog for selecting a microphone (used by tray menu).
+    """
     def __init__(self, parent=None):
+        """
+        Initializes the device selection dialog.
+        
+        Args:
+            parent (QWidget, optional): Parent widget.
+        """
         super().__init__(parent)
         self.setWindowTitle("Select Microphone")
         self.resize(600, 400)
@@ -873,6 +1114,9 @@ class DeviceSelectionDialog(QDialog):
         self.selected_device_id = None
 
     def accept_selection(self):
+        """
+        Validates and accepts the selected device.
+        """
         self.selected_device_id = self.widget.get_selected_device_id()
         if not self.selected_device_id:
             QMessageBox.warning(self, "No Selection", "Please select a device.")

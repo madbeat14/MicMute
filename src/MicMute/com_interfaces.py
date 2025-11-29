@@ -16,12 +16,19 @@ CLSID_MMDeviceEnumerator = GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}")
 # If this changes, search for "IPolicyConfig" or "CPolicyConfigClient" in open-source audio switchers.
 CLSID_PolicyConfig = GUID("{870af99c-171d-4f9e-af0d-e63df40c2bc9}")
 
+# Data flow direction: Capture (Recording)
 eCapture = 1
+# Device state: Active
 DEVICE_STATE_ACTIVE = 1
+# Context: All (In-process, local server, etc.)
 CLSCTX_ALL = 23
 
 # --- Structures ---
 class WAVEFORMATEX(Structure):
+    """
+    Defines the format of waveform-audio data.
+    Source: mmreg.h
+    """
     _fields_ = [
         ("wFormatTag", wintypes.WORD),
         ("nChannels", wintypes.WORD),
@@ -33,12 +40,20 @@ class WAVEFORMATEX(Structure):
     ]
 
 class PROPERTYKEY(Structure):
+    """
+    Specifies the FMTID/PID identifier that programmatically identifies a property.
+    Source: wtypes.h
+    """
     _fields_ = [
         ("fmtid", GUID),
         ("pid", wintypes.DWORD),
     ]
 
 class PROPVARIANT(Structure):
+    """
+    Container for a range of property values.
+    Source: propidl.h
+    """
     _fields_ = [
         ("vt", wintypes.WORD),
         ("wReserved1", wintypes.WORD),
@@ -53,6 +68,10 @@ class PROPVARIANT(Structure):
 # Source: mmdeviceapi.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdevice
 class IMMDevice(IUnknown):
+    """
+    Represents a generic audio device.
+    Provides methods to activate interface, open property store, and get ID/state.
+    """
     _iid_ = GUID("{D666063F-1587-4E43-81F1-B948E807363F}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'Activate',
@@ -73,6 +92,10 @@ class IMMDevice(IUnknown):
 # Source: mmdeviceapi.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdevicecollection
 class IMMDeviceCollection(IUnknown):
+    """
+    Represents a collection of multimedia devices.
+    Used to iterate over available devices.
+    """
     _iid_ = GUID("{0BD7A1BE-7A1A-44DB-8397-CC539238725E}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'GetCount',
@@ -86,6 +109,9 @@ class IMMDeviceCollection(IUnknown):
 # Source: mmdeviceapi.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdeviceenumerator
 class IMMDeviceEnumerator(IUnknown):
+    """
+    Provides methods for enumerating multimedia device resources.
+    """
     _iid_ = GUID("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'EnumAudioEndpoints',
@@ -109,6 +135,9 @@ class IMMDeviceEnumerator(IUnknown):
 # Source: Reverse engineered. Matches CLSID_PolicyConfig.
 # Note: Microsoft does not publish this interface. It is widely used in community tools to switch audio devices programmatically.
 class IPolicyConfig(IUnknown):
+    """
+    Undocumented interface for managing audio device policies, including setting the default device.
+    """
     _iid_ = GUID("{f8679f50-850a-41cf-9c72-430f290290c8}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'GetMixFormat',
@@ -158,6 +187,9 @@ class IPolicyConfig(IUnknown):
 # Source: propsys.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/propsys/nn-propsys-ipropertystore
 class IPropertyStore(IUnknown):
+    """
+    Exposes methods to read, write, and delete properties.
+    """
     _iid_ = GUID("{886d8eeb-8cf2-4446-8d02-cdba1dbdcf99}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'GetCount',
@@ -182,6 +214,10 @@ PKEY_Device_FriendlyName = PROPERTYKEY(GUID("{A45C254E-DF1C-4EFD-8020-67D146A850
 # Source: endpointvolume.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudiometerinformation
 class IAudioMeterInformation(IUnknown):
+    """
+    Represents a peak meter on an audio device.
+    Used to monitor audio levels.
+    """
     _iid_ = GUID("{C02216F6-8C67-4B5B-9D00-D008E73E0064}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'GetPeakValue',
@@ -199,6 +235,9 @@ class IAudioMeterInformation(IUnknown):
 # Source: audioclient.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nn-audioclient-iaudioclient
 class IAudioClient(IUnknown):
+    """
+    Enables a client to create and initialize an audio stream between an audio application and the audio engine.
+    """
     _iid_ = GUID("{1CB9AD4C-DBFA-4c32-B178-C2F568A703B2}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'Initialize',
@@ -236,13 +275,19 @@ class IAudioClient(IUnknown):
 # --- Notification Client ---
 
 # EDataFlow Constants
+# Audio rendering stream (Playback)
 eRender = 0
+# Audio capture stream (Recording)
 eCapture = 1
+# All streams
 eAll = 2
 
 # ERole Constants
+# Interaction with the computer (System sounds, etc.)
 eConsole = 0
+# Multimedia playback (Music, Movies)
 eMultimedia = 1
+# Voice communications (Telephony, Chat)
 eCommunications = 2
 
 # IMMNotificationClient: Interface for receiving notifications when an audio endpoint device is added or removed, 
@@ -250,6 +295,10 @@ eCommunications = 2
 # Source: mmdeviceapi.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immnotificationclient
 class IMMNotificationClient(IUnknown):
+    """
+    Interface for receiving notifications when an audio endpoint device is added or removed,
+    when the state or properties of an endpoint device change, or when there is a change in the default audio endpoint device.
+    """
     _iid_ = GUID("{7991EEC9-7E89-4D85-8390-6C703CEC60C0}")
     _methods_ = [
         COMMETHOD([], HRESULT, 'OnDeviceStateChanged',
