@@ -231,7 +231,7 @@ try:
         CLSID_MMDeviceEnumerator, CLSID_PolicyConfig, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL,
         WAVEFORMATEX, PROPERTYKEY, PROPVARIANT,
         IMMDevice, IMMDeviceCollection, IMMDeviceEnumerator, IPolicyConfig, IAudioMeterInformation,
-        IPropertyStore, PKEY_Device_FriendlyName
+        IPropertyStore, PKEY_Device_FriendlyName, IAudioClient
     )
     from comtypes import client, GUID
 

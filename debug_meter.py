@@ -3,6 +3,7 @@ import os
 import time
 import comtypes.client
 import ctypes
+from ctypes import POINTER
 
 # Add src directory to sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
@@ -11,6 +12,8 @@ from MicMute.com_interfaces import (
     CLSID_MMDeviceEnumerator,
     IMMDeviceEnumerator,
     IAudioMeterInformation,
+    IAudioClient,
+    WAVEFORMATEX,
     eCapture,
     CLSCTX_ALL,
     IPropertyStore,
@@ -18,6 +21,8 @@ from MicMute.com_interfaces import (
 )
 
 def main():
+    import comtypes
+    comtypes.CoInitialize()
     print("Initializing Audio Meter Debugger...")
     
     try:
@@ -25,12 +30,7 @@ def main():
         
         # Get Default Devices
         def_console = enumerator.GetDefaultAudioEndpoint(eCapture, 0).GetId()
-        def_media = enumerator.GetDefaultAudioEndpoint(eCapture, 1).GetId()
-        def_comm = enumerator.GetDefaultAudioEndpoint(eCapture, 2).GetId()
-        
         print(f"Default Console: {def_console}")
-        print(f"Default Media:   {def_media}")
-        print(f"Default Comm:    {def_comm}")
 
         # Enumerate all active capture devices
         devices_collection = enumerator.EnumAudioEndpoints(eCapture, 1) # 1 = DEVICE_STATE_ACTIVE
@@ -38,6 +38,8 @@ def main():
         print(f"Found {count} active capture devices.")
         
         meters = []
+        clients = [] # Keep clients alive
+        
         for i in range(count):
             device = devices_collection.Item(i)
             dev_id = device.GetId()
@@ -55,17 +57,29 @@ def main():
 
             is_def = ""
             if dev_id == def_console: is_def += " [CONSOLE]"
-            if dev_id == def_media: is_def += " [MEDIA]"
-            if dev_id == def_comm: is_def += " [COMM]"
             
             print(f"Device {i}: {name} ({dev_id}){is_def}")
             
             try:
+                # Activate Meter
                 meter_unk = device.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
-                meter = meter_unk.QueryInterface(IAudioMeterInformation)
+                meter = ctypes.cast(meter_unk, POINTER(IAudioMeterInformation))
+                
+                # Activate Client to start stream
+                client_unk = device.Activate(IAudioClient._iid_, CLSCTX_ALL, None)
+                client = ctypes.cast(client_unk, POINTER(IAudioClient))
+                
+                # Initialize Client
+                fmt = client.GetMixFormat()
+                # ShareMode=0 (Shared), Flags=0
+                client.Initialize(0, 0, 10000000, 0, fmt, None)
+                client.Start()
+                clients.append(client)
+                
                 meters.append((i, meter))
+                print(f"  Started stream on device {i}")
             except Exception as e:
-                print(f"  Failed to activate meter for device {i}: {e}")
+                print(f"  Failed to setup device {i}: {e}")
 
         print("\nReading Peak Values (Press Ctrl+C to stop)...")
         for _ in range(10): # Run for about 1 second
@@ -73,15 +87,12 @@ def main():
             for idx, meter in meters:
                 try:
                     val = meter.GetPeakValue()
-                    if val > 0.0001:
-                        output.append(f"Dev {idx}: {val:.4f}")
-                except:
-                    pass
+                    output.append(f"Dev {idx}: {val:.4f}")
+                except Exception as e:
+                    output.append(f"Dev {idx} Err: {e}")
             
             if output:
                 print(" | ".join(output))
-            else:
-                print("Silence...")
             
             time.sleep(0.1)
             

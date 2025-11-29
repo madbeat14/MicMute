@@ -194,3 +194,41 @@ class IAudioMeterInformation(IUnknown):
         COMMETHOD([], HRESULT, 'QueryHardwareSupport',
                   (['out', 'retval'], POINTER(ctypes.c_uint), 'pdwHardwareSupportMask')),
     ]
+
+# IAudioClient: Interface for creating and initializing audio streams.
+# Source: audioclient.h (Windows SDK)
+# Reference: https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nn-audioclient-iaudioclient
+class IAudioClient(IUnknown):
+    _iid_ = GUID("{1CB9AD4C-DBFA-4c32-B178-C2F568A703B2}")
+    _methods_ = [
+        COMMETHOD([], HRESULT, 'Initialize',
+                  (['in'], ctypes.c_int, 'ShareMode'),
+                  (['in'], ctypes.c_uint, 'StreamFlags'),
+                  (['in'], ctypes.c_longlong, 'hnsBufferDuration'),
+                  (['in'], ctypes.c_longlong, 'hnsPeriodicity'),
+                  (['in'], POINTER(WAVEFORMATEX), 'pFormat'),
+                  (['in'], POINTER(GUID), 'AudioSessionGuid')),
+        COMMETHOD([], HRESULT, 'GetBufferSize',
+                  (['out', 'retval'], POINTER(ctypes.c_uint), 'pNumBufferFrames')),
+        COMMETHOD([], HRESULT, 'GetStreamLatency',
+                  (['out', 'retval'], POINTER(ctypes.c_longlong), 'phnsLatency')),
+        COMMETHOD([], HRESULT, 'GetCurrentPadding',
+                  (['out', 'retval'], POINTER(ctypes.c_uint), 'pNumPaddingFrames')),
+        COMMETHOD([], HRESULT, 'IsFormatSupported',
+                  (['in'], ctypes.c_int, 'ShareMode'),
+                  (['in'], POINTER(WAVEFORMATEX), 'pFormat'),
+                  (['out', 'optional'], POINTER(POINTER(WAVEFORMATEX)), 'ppClosestMatch')),
+        COMMETHOD([], HRESULT, 'GetMixFormat',
+                  (['out', 'retval'], POINTER(POINTER(WAVEFORMATEX)), 'ppDeviceFormat')),
+        COMMETHOD([], HRESULT, 'GetDevicePeriod',
+                  (['out', 'optional'], POINTER(ctypes.c_longlong), 'phnsDefaultDevicePeriod'),
+                  (['out', 'optional'], POINTER(ctypes.c_longlong), 'phnsMinimumDevicePeriod')),
+        COMMETHOD([], HRESULT, 'Start'),
+        COMMETHOD([], HRESULT, 'Stop'),
+        COMMETHOD([], HRESULT, 'Reset'),
+        COMMETHOD([], HRESULT, 'SetEventHandle',
+                  (['in'], ctypes.c_void_p, 'eventHandle')),
+        COMMETHOD([], HRESULT, 'GetService',
+                  (['in'], POINTER(GUID), 'riid'),
+                  (['out', 'retval'], POINTER(POINTER(IUnknown)), 'ppv')),
+    ]

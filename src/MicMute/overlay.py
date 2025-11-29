@@ -143,8 +143,9 @@ class MetroOSD(QWidget):
 
 # --- PERSISTENT OVERLAY ---
 try:
-    from .utils import IAudioMeterInformation, IMMDeviceEnumerator, CLSID_MMDeviceEnumerator, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL
+    from .utils import IAudioMeterInformation, IMMDeviceEnumerator, CLSID_MMDeviceEnumerator, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL, IAudioClient, WAVEFORMATEX
     from comtypes import client
+    from ctypes import POINTER, cast
     HAS_COM = True
 except ImportError:
     HAS_COM = False
@@ -344,7 +345,17 @@ class StatusOverlay(QWidget):
             # meter = meter_unk.QueryInterface(IAudioMeterInformation)
             
             meter_unk = device.Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
-            self.meter = meter_unk.QueryInterface(IAudioMeterInformation)
+            # meter = meter_unk.QueryInterface(IAudioMeterInformation) # This fails if type is POINTER(IUnknown)
+            self.meter = cast(meter_unk, POINTER(IAudioMeterInformation))
+            
+            # Start Audio Client to ensure meter works
+            client_unk = device.Activate(IAudioClient._iid_, CLSCTX_ALL, None)
+            self.audio_client = cast(client_unk, POINTER(IAudioClient))
+            fmt = self.audio_client.GetMixFormat()
+            # ShareMode=0 (Shared), Flags=0, Duration=100ms (1000000 reftimes)
+            self.audio_client.Initialize(0, 0, 1000000, 0, fmt, None)
+            self.audio_client.Start()
+            
             self.meter_timer.start()
         except Exception as e:
             print(f"Error starting meter: {e}")
@@ -353,6 +364,14 @@ class StatusOverlay(QWidget):
     def stop_meter(self):
         self.meter_timer.stop()
         self.meter = None
+        
+        if hasattr(self, 'audio_client') and self.audio_client:
+            try:
+                self.audio_client.Stop()
+            except:
+                pass
+            self.audio_client = None
+            
         self.set_active(False)
 
     @Slot()
