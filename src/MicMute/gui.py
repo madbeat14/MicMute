@@ -635,14 +635,6 @@ class OsdSettingsWidget(QWidget):
         layout.addRow("Display Duration:", self.duration_spin)
         layout.addRow("Position:", self.position_combo)
         
-        # Enable/Disable controls based on checkbox
-        self.size_spin.setEnabled(self.enabled_cb.isChecked())
-        self.duration_spin.setEnabled(self.enabled_cb.isChecked())
-        self.position_combo.setEnabled(self.enabled_cb.isChecked())
-        self.enabled_cb.toggled.connect(self.size_spin.setEnabled)
-        self.enabled_cb.toggled.connect(self.duration_spin.setEnabled)
-        self.enabled_cb.toggled.connect(self.position_combo.setEnabled)
-
     def get_config(self):
         return {
             'enabled': self.enabled_cb.isChecked(),
@@ -662,6 +654,22 @@ class PersistentOverlaySettingsWidget(QWidget):
         
         self.vu_cb = QCheckBox("Show Voice Activity (VU Meter)")
         self.vu_cb.setChecked(self.audio.persistent_overlay.get('show_vu', False))
+        
+        # Device Selection
+        self.device_combo = QComboBox()
+        self.device_combo.addItem("Default Device", None)
+        
+        # Populate Devices
+        try:
+            devices = get_audio_devices()
+            for dev in devices:
+                self.device_combo.addItem(f"{dev['name']}", dev['id'])
+        except: pass
+            
+        current_dev = self.audio.persistent_overlay.get('device_id')
+        index = self.device_combo.findData(current_dev)
+        if index >= 0:
+            self.device_combo.setCurrentIndex(index)
         
         self.lock_cb = QCheckBox("Lock Overlay Position")
         self.lock_cb.setChecked(self.audio.persistent_overlay.get('locked', False))
@@ -690,6 +698,7 @@ class PersistentOverlaySettingsWidget(QWidget):
         
         layout.addRow(self.enabled_cb)
         layout.addRow(self.vu_cb)
+        layout.addRow("Monitor Device:", self.device_combo)
         
         sens_layout = QHBoxLayout()
         sens_layout.addWidget(self.sensitivity_slider)
@@ -702,6 +711,7 @@ class PersistentOverlaySettingsWidget(QWidget):
         
         # Dependencies
         self.vu_cb.setEnabled(self.enabled_cb.isChecked())
+        self.device_combo.setEnabled(self.enabled_cb.isChecked() and self.vu_cb.isChecked())
         self.lock_cb.setEnabled(self.enabled_cb.isChecked())
         self.opacity_slider.setEnabled(self.enabled_cb.isChecked())
         self.position_combo.setEnabled(self.enabled_cb.isChecked())
@@ -713,8 +723,10 @@ class PersistentOverlaySettingsWidget(QWidget):
         self.enabled_cb.toggled.connect(self.position_combo.setEnabled)
         
         def update_sens_enable():
-            self.sensitivity_slider.setEnabled(self.enabled_cb.isChecked() and self.vu_cb.isChecked())
-            self.sensitivity_label.setEnabled(self.enabled_cb.isChecked() and self.vu_cb.isChecked())
+            is_vu = self.enabled_cb.isChecked() and self.vu_cb.isChecked()
+            self.sensitivity_slider.setEnabled(is_vu)
+            self.sensitivity_label.setEnabled(is_vu)
+            self.device_combo.setEnabled(is_vu)
             
         self.enabled_cb.toggled.connect(update_sens_enable)
         self.vu_cb.toggled.connect(update_sens_enable)
@@ -723,6 +735,7 @@ class PersistentOverlaySettingsWidget(QWidget):
         return {
             'enabled': self.enabled_cb.isChecked(),
             'show_vu': self.vu_cb.isChecked(),
+            'device_id': self.device_combo.currentData(),
             'locked': self.lock_cb.isChecked(),
             'position_mode': self.position_combo.currentText(),
             'opacity': self.opacity_slider.value(),

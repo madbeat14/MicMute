@@ -154,6 +154,30 @@ class IPolicyConfig(IUnknown):
                   (['in'], ctypes.c_int, 'bVisible')),
     ]
 
+# IPropertyStore: Interface for reading and writing properties.
+# Source: propsys.h (Windows SDK)
+# Reference: https://learn.microsoft.com/en-us/windows/win32/api/propsys/nn-propsys-ipropertystore
+class IPropertyStore(IUnknown):
+    _iid_ = GUID("{886d8eeb-8cf2-4446-8d02-cdba1dbdcf99}")
+    _methods_ = [
+        COMMETHOD([], HRESULT, 'GetCount',
+                  (['out', 'retval'], POINTER(ctypes.c_uint), 'cProps')),
+        COMMETHOD([], HRESULT, 'GetAt',
+                  (['in'], ctypes.c_uint, 'iProp'),
+                  (['out', 'retval'], POINTER(PROPERTYKEY), 'pkey')),
+        COMMETHOD([], HRESULT, 'GetValue',
+                  (['in'], POINTER(PROPERTYKEY), 'key'),
+                  (['out', 'retval'], POINTER(PROPVARIANT), 'pv')),
+        COMMETHOD([], HRESULT, 'SetValue',
+                  (['in'], POINTER(PROPERTYKEY), 'key'),
+                  (['in'], POINTER(PROPVARIANT), 'propvar')),
+        COMMETHOD([], HRESULT, 'Commit'),
+    ]
+
+# PKEY_Device_FriendlyName
+# Source: functiondiscoverykeys_devpkey.h
+PKEY_Device_FriendlyName = PROPERTYKEY(GUID("{A45C254E-DF1C-4EFD-8020-67D146A850E0}"), 14)
+
 # IAudioMeterInformation: Represents a peak meter on an audio device.
 # Source: endpointvolume.h (Windows SDK)
 # Reference: https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudiometerinformation

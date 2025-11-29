@@ -1,5 +1,17 @@
 
 
+## [2.4.0] - 2025-11-29
+### Features
+- **Device Selection**: Added "Monitor Device" selector to Persistent Overlay settings, allowing users to choose a specific microphone for the voice activity meter.
+
+### Fixes
+- **Voice Activity Meter**: Fixed issue where voice activity meter was monitoring the default system device instead of the active microphone.
+- **GUI**: Resolved syntax error in GUI settings widget.
+
+### Refactor
+- **COM Interfaces**: Extracted COM definitions to `src/MicMute/com_interfaces.py` and added `IPropertyStore` for device name retrieval.
+- **Utils**: Added `get_audio_devices` utility to enumerate active capture devices with friendly names.
+
 ## [2.3.0] - 2025-11-29
 ### Performance
 - **CPU Optimization**: Implemented dynamic throttling for AFK detection, reducing idle CPU usage to near zero.

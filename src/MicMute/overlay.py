@@ -224,6 +224,10 @@ class StatusOverlay(QWidget):
             return
             
         self.show_vu = config.get('show_vu', False)
+        
+        # Update Target Device
+        self.set_target_device(config.get('device_id'))
+        
         opacity = config.get('opacity', 80) / 100.0
         self.setWindowOpacity(opacity)
         

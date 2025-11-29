@@ -169,7 +169,8 @@ try:
     from .com_interfaces import (
         CLSID_MMDeviceEnumerator, CLSID_PolicyConfig, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL,
         WAVEFORMATEX, PROPERTYKEY, PROPVARIANT,
-        IMMDevice, IMMDeviceCollection, IMMDeviceEnumerator, IPolicyConfig, IAudioMeterInformation
+        IMMDevice, IMMDeviceCollection, IMMDeviceEnumerator, IPolicyConfig, IAudioMeterInformation,
+        IPropertyStore, PKEY_Device_FriendlyName
     )
     from comtypes import client, GUID
 
@@ -188,6 +189,31 @@ try:
         except Exception as e:
             print(f"Failed to set default device: {e}")
             return False
+
+    def get_audio_devices():
+        devices = []
+        try:
+            enumerator = client.CreateObject(CLSID_MMDeviceEnumerator, interface=IMMDeviceEnumerator)
+            collection = enumerator.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
+            count = collection.GetCount()
+            for i in range(count):
+                device = collection.Item(i)
+                dev_id = device.GetId()
+                name = "Unknown Device"
+                try:
+                    props = device.OpenPropertyStore(0) # STGM_READ
+                    val = props.GetValue(PKEY_Device_FriendlyName)
+                    # PROPVARIANT handling
+                    if val.vt == 31: # VT_LPWSTR
+                        # val.data is c_ulonglong * 2
+                        ptr = val.data[0]
+                        name = ctypes.cast(ptr, ctypes.c_wchar_p).value
+                except Exception:
+                    pass
+                devices.append({'id': dev_id, 'name': name})
+        except Exception as e:
+            print(f"Error enumerating devices: {e}")
+        return devices
 
 except ImportError:
     def set_default_device(device_id):

@@ -16,7 +16,7 @@ from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -58,7 +58,7 @@ def main():
     # Persistent Overlay Initialization
     overlay = StatusOverlay(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
     overlay.set_config(audio.persistent_overlay)
-    overlay.set_target_device(audio.device_id)
+    # overlay.set_target_device(audio.device_id) # Removed to allow config to control device
     overlay.config_changed.connect(audio.update_persistent_overlay)
     
     def get_current_icon(muted, light_theme):
@@ -150,7 +150,7 @@ def main():
                 # Update OSD config after settings close
                 osd.set_config(audio.osd_config)
                 overlay.set_config(audio.persistent_overlay)
-                overlay.set_target_device(audio.device_id)
+                # overlay.set_target_device(audio.device_id) # Removed
             
             # Explicit Cleanup
             dialogs['settings'] = None
