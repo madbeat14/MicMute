@@ -17,6 +17,7 @@ class MuteSignals(QObject):
     toggle_mute = Signal() # Signal to trigger mute from hook
     set_mute = Signal(bool) # Signal to trigger explicit mute state from hook
     key_recorded = Signal(int) # Signal when a key is captured in recording mode
+    device_changed = Signal(str) # Signal when default device changes
     exit_app = Signal()
 
 signals = MuteSignals()
@@ -27,6 +28,7 @@ class AudioController:
         'volume', 'device', 'device_id', 'beep_enabled', 'beep_config',
         'sound_config', 'hotkey_config', 'afk_config', 'osd_config',
         'persistent_overlay', 'sync_ids', 'BEEP_ERROR', 'player',
+        'device_listener', 'enumerator',
         '__weakref__'
     ]
 
@@ -68,7 +70,27 @@ class AudioController:
         # Audio Player
         self.player = None
         
+        self.device_listener = None
+        self.enumerator = None
+        
         self.load_config()
+        self.start_device_watcher()
+
+    def start_device_watcher(self):
+        try:
+            from .utils import DeviceChangeListener, CLSID_MMDeviceEnumerator, IMMDeviceEnumerator
+            from comtypes import client
+            
+            self.enumerator = client.CreateObject(CLSID_MMDeviceEnumerator, interface=IMMDeviceEnumerator)
+            self.device_listener = DeviceChangeListener(self.on_device_changed_callback)
+            self.enumerator.RegisterEndpointNotificationCallback(self.device_listener)
+            print("Background device watcher started.")
+        except Exception as e:
+            print(f"Failed to start device watcher: {e}")
+
+    def on_device_changed_callback(self, new_device_id):
+        # Called from COM thread
+        signals.device_changed.emit(new_device_id)
 
     def load_config(self):
         try:

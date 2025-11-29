@@ -231,10 +231,34 @@ try:
         CLSID_MMDeviceEnumerator, CLSID_PolicyConfig, eCapture, DEVICE_STATE_ACTIVE, CLSCTX_ALL,
         WAVEFORMATEX, PROPERTYKEY, PROPVARIANT,
         IMMDevice, IMMDeviceCollection, IMMDeviceEnumerator, IPolicyConfig, IAudioMeterInformation,
-        IPropertyStore, PKEY_Device_FriendlyName, IAudioClient
+        IPropertyStore, PKEY_Device_FriendlyName, IAudioClient, IMMNotificationClient,
+        eRender, eConsole, eMultimedia, eCommunications
     )
-    from comtypes import client, GUID
+    from comtypes import client, GUID, COMObject
 
+    class DeviceChangeListener(COMObject):
+        _com_interfaces_ = [IMMNotificationClient]
+
+        def __init__(self, callback):
+            super().__init__()
+            self.callback = callback
+
+        def OnDeviceStateChanged(self, pwstrDeviceId, dwNewState):
+            pass
+
+        def OnDeviceAdded(self, pwstrDeviceId):
+            pass
+
+        def OnDeviceRemoved(self, pwstrDeviceId):
+            pass
+
+        def OnDefaultDeviceChanged(self, flow, role, pwstrDefaultDeviceId):
+            if flow == eCapture and role == eConsole: # eConsole is usually the system default
+                if self.callback:
+                    self.callback(pwstrDefaultDeviceId)
+
+        def OnPropertyValueChanged(self, pwstrDeviceId, key):
+            pass
 
     def set_default_device(device_id):
         try:
@@ -280,3 +304,9 @@ except ImportError:
     def set_default_device(device_id):
         print("comtypes not found, cannot set default device.")
         return False
+    
+    def get_audio_devices():
+        return []
+    
+    class DeviceChangeListener:
+        def __init__(self, callback): pass

@@ -1,5 +1,10 @@
 
 
+## [2.8.0] - 2025-11-29
+### Features
+- **Device Synchronization**: Implemented real-time detection of Default Recording Device changes. The application now automatically switches its control target and updates the UI (Tray Menu and Settings) instantly when the default device is changed in Windows Settings.
+- **Background Watcher**: Added `IMMNotificationClient` COM listener to watch for device changes without polling.
+
 ## [2.7.0] - 2025-11-29
 ### Debugging
 - **Pycaw Scripts**: Added `debug_audio_pycaw.py` and `debug_meter_pycaw.py` as high-level alternatives using the pycaw library for device enumeration and metering.

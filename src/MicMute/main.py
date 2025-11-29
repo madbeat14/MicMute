@@ -16,7 +16,7 @@ from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
-VERSION = "2.5.0"
+VERSION = "2.8.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -220,6 +220,17 @@ def main():
     signals.toggle_mute.connect(audio.toggle_mute)
     signals.set_mute.connect(audio.set_mute_state)
     signals.exit_app.connect(app.quit)
+    
+    def on_device_changed(new_id):
+        print(f"Default Device Changed: {new_id}")
+        # Automatically switch to the new default device
+        if audio.set_device_by_id(new_id):
+            # Update Overlay target
+            overlay.set_target_device(new_id)
+            # Show notification
+            tray.showMessage("Device Changed", "Switched to new default microphone.", QSystemTrayIcon.Information, 2000)
+            
+    signals.device_changed.connect(on_device_changed)
 
     # AFK Timer (Dynamic Throttling)
     afk_timer = QTimer()

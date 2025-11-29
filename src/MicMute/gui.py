@@ -78,6 +78,7 @@ class DeviceSelectionWidget(QWidget):
         
         # Listen for external updates
         signals.update_icon.connect(self.update_status_ui)
+        signals.device_changed.connect(lambda _: self.refresh_devices())
         
         self.refresh_devices()
 

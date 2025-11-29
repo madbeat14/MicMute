@@ -232,3 +232,38 @@ class IAudioClient(IUnknown):
                   (['in'], POINTER(GUID), 'riid'),
                   (['out', 'retval'], POINTER(POINTER(IUnknown)), 'ppv')),
     ]
+
+# --- Notification Client ---
+
+# EDataFlow Constants
+eRender = 0
+eCapture = 1
+eAll = 2
+
+# ERole Constants
+eConsole = 0
+eMultimedia = 1
+eCommunications = 2
+
+# IMMNotificationClient: Interface for receiving notifications when an audio endpoint device is added or removed, 
+# when the state or properties of an endpoint device change, or when there is a change in the default audio endpoint device.
+# Source: mmdeviceapi.h (Windows SDK)
+# Reference: https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immnotificationclient
+class IMMNotificationClient(IUnknown):
+    _iid_ = GUID("{7991EEC9-7E89-4D85-8390-6C703CEC60C0}")
+    _methods_ = [
+        COMMETHOD([], HRESULT, 'OnDeviceStateChanged',
+                  (['in'], ctypes.c_wchar_p, 'pwstrDeviceId'),
+                  (['in'], ctypes.c_uint, 'dwNewState')),
+        COMMETHOD([], HRESULT, 'OnDeviceAdded',
+                  (['in'], ctypes.c_wchar_p, 'pwstrDeviceId')),
+        COMMETHOD([], HRESULT, 'OnDeviceRemoved',
+                  (['in'], ctypes.c_wchar_p, 'pwstrDeviceId')),
+        COMMETHOD([], HRESULT, 'OnDefaultDeviceChanged',
+                  (['in'], ctypes.c_int, 'flow'),
+                  (['in'], ctypes.c_int, 'role'),
+                  (['in'], ctypes.c_wchar_p, 'pwstrDefaultDeviceId')),
+        COMMETHOD([], HRESULT, 'OnPropertyValueChanged',
+                  (['in'], ctypes.c_wchar_p, 'pwstrDeviceId'),
+                  (['in'], PROPERTYKEY, 'key')),
+    ]
