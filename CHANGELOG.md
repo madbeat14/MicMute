@@ -1,5 +1,9 @@
 
 
+## [2.7.0] - 2025-11-29
+### Debugging
+- **Pycaw Scripts**: Added `debug_audio_pycaw.py` and `debug_meter_pycaw.py` as high-level alternatives using the pycaw library for device enumeration and metering.
+
 ## [2.6.0] - 2025-11-29
 ### Fixes
 - **Voice Activity Meter**: Fixed issue where the meter would not initialize on some devices by ensuring `IAudioClient` is active.
