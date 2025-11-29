@@ -1,5 +1,11 @@
 
 
+## [2.8.1] - 2025-11-29
+### Tests
+- **Comprehensive Test Suite**: Implemented full unit test coverage for Core, GUI, Overlay, and Utility components (22 tests).
+- **Warning Resolution**: Resolved 52 `COMError` warnings in `DeviceSelectionWidget` by correctly mocking global audio dependencies.
+- **Stability**: Refactored tests to use safe `patch` context managers instead of risky `sys.modules` patching.
+
 ## [2.8.0] - 2025-11-29
 ### Features
 - **Device Synchronization**: Implemented real-time detection of Default Recording Device changes. The application now automatically switches its control target and updates the UI (Tray Menu and Settings) instantly when the default device is changed in Windows Settings.

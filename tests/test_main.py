@@ -18,7 +18,8 @@ def test_audio_controller_init():
     with patch("MicMute.core.AudioController.load_config"): # Prevent loading real config
         audio = AudioController()
         assert audio.beep_enabled is True
-        assert audio.hotkey_config['vk'] == 0xB3
+        # Updated structure check
+        assert audio.hotkey_config['toggle']['vk'] == 0xB3
 
 def test_is_system_light_theme():
     """Test theme detection returns boolean."""
