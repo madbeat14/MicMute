@@ -196,7 +196,7 @@ def main():
         if is_muted is not None or new_theme != is_light_theme:
             is_light_theme = new_theme
             tray.setIcon(get_current_icon(current_mute_state, is_light_theme))
-            tray.setToolTip(f"Mic Mute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
+            tray.setToolTip(f"MicMute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
         
         # Trigger OSD if muted state changed
         if is_muted is not None:
