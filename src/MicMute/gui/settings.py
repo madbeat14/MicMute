@@ -1,4 +1,5 @@
 import os
+import shutil
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox, 
                              QFormLayout, QSpinBox, QCheckBox, QDialog, QTabWidget, QFileDialog, QLineEdit, QSlider, QComboBox)
 from PySide6.QtCore import Qt
@@ -7,7 +8,6 @@ from winsound import Beep
 from ..core import signals
 from .devices import DeviceSelectionWidget
 from .hotkeys import HotkeySettingsWidget
-
 class BeepSettingsWidget(QWidget):
     """
     Widget for configuring beep sounds and custom audio files.
@@ -22,6 +22,8 @@ class BeepSettingsWidget(QWidget):
         """
         super().__init__(parent)
         self.audio = audio_controller
+        self.pending_sounds = {} # Stores full paths of newly selected files
+        
         layout = QVBoxLayout(self)
         
         # --- Custom Sounds ---
@@ -31,7 +33,9 @@ class BeepSettingsWidget(QWidget):
         # Mute Sound
         self.mute_path = QLineEdit()
         self.mute_path.setReadOnly(True)
-        self.mute_path.setText(self.audio.sound_config.get('mute') or "")
+        # Show only basename
+        mute_cfg = self.audio.sound_config.get('mute')
+        self.mute_path.setText(os.path.basename(mute_cfg) if mute_cfg else "")
         
         mute_btns = QHBoxLayout()
         self.btn_browse_mute = QPushButton("Browse")
@@ -47,7 +51,9 @@ class BeepSettingsWidget(QWidget):
         # Unmute Sound
         self.unmute_path = QLineEdit()
         self.unmute_path.setReadOnly(True)
-        self.unmute_path.setText(self.audio.sound_config.get('unmute') or "")
+        # Show only basename
+        unmute_cfg = self.audio.sound_config.get('unmute')
+        self.unmute_path.setText(os.path.basename(unmute_cfg) if unmute_cfg else "")
         
         unmute_btns = QHBoxLayout()
         self.btn_browse_unmute = QPushButton("Browse")
@@ -56,6 +62,9 @@ class BeepSettingsWidget(QWidget):
         self.btn_play_unmute.clicked.connect(lambda: self.preview_sound('unmute'))
         unmute_btns.addWidget(self.btn_browse_unmute)
         unmute_btns.addWidget(self.btn_play_unmute)
+        
+        sound_layout.addRow("Unmute Sound:", self.unmute_path)
+        sound_layout.addRow("", unmute_btns)
         
         sound_group.setLayout(sound_layout)
         layout.addWidget(sound_group)
@@ -111,16 +120,19 @@ class BeepSettingsWidget(QWidget):
     def browse_sound(self, sound_type):
         """
         Opens a file dialog to select a custom sound file.
+        Stores path in pending list and updates UI with basename.
         
         Args:
             sound_type (str): 'mute' or 'unmute'.
         """
         path, _ = QFileDialog.getOpenFileName(self, "Select Sound File", "", "Audio Files (*.wav *.mp3)")
         if path:
+            self.pending_sounds[sound_type] = path
+            basename = os.path.basename(path)
             if sound_type == 'mute':
-                self.mute_path.setText(path)
+                self.mute_path.setText(basename)
             else:
-                self.unmute_path.setText(path)
+                self.unmute_path.setText(basename)
 
     def preview_sound(self, sound_type):
         """
@@ -129,11 +141,19 @@ class BeepSettingsWidget(QWidget):
         Args:
             sound_type (str): 'mute' or 'unmute'.
         """
-        # Temporarily use the path from UI to preview
-        path = self.mute_path.text() if sound_type == 'mute' else self.unmute_path.text()
+        # Check pending first
+        path = self.pending_sounds.get(sound_type)
+        if not path:
+            # Check existing config
+            path = self.audio.sound_config.get(sound_type)
+            
         if path and os.path.exists(path):
             # Use AudioController's player but set source manually
             from PySide6.QtCore import QUrl
+            if self.audio.player is None:
+                from PySide6.QtMultimedia import QSoundEffect
+                self.audio.player = QSoundEffect()
+                
             self.audio.player.setSource(QUrl.fromLocalFile(path))
             self.audio.player.setVolume(0.5)
             self.audio.player.play()
@@ -165,10 +185,32 @@ class BeepSettingsWidget(QWidget):
     def get_config(self):
         """
         Retrieves the current beep and sound configuration.
+        Copies pending sounds to local storage.
         
         Returns:
             dict: Configuration dictionary.
         """
+        # Process pending copies
+        sounds_dir = os.path.join(os.getcwd(), "sounds")
+        os.makedirs(sounds_dir, exist_ok=True)
+        
+        final_sound_config = self.audio.sound_config.copy()
+        
+        for stype, source_path in self.pending_sounds.items():
+            try:
+                filename = os.path.basename(source_path)
+                dest_path = os.path.join(sounds_dir, filename)
+                shutil.copy2(source_path, dest_path)
+                final_sound_config[stype] = dest_path
+            except Exception as e:
+                print(f"Error copying sound: {e}")
+                # Fallback to source path
+                final_sound_config[stype] = source_path
+        
+        # Clear pending as they are now committed (if save is successful)
+        # Note: If save fails later, we might lose pending state, but get_config implies intent to save.
+        self.pending_sounds.clear()
+        
         return {
             'beep': {
                 'mute': {
@@ -182,10 +224,7 @@ class BeepSettingsWidget(QWidget):
                     'count': self.unmute_count.value()
                 }
             },
-            'sound': {
-                'mute': self.mute_path.text(),
-                'unmute': self.unmute_path.text()
-            }
+            'sound': final_sound_config
         }
 
 class AfkSettingsWidget(QWidget):

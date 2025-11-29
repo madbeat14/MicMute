@@ -11,19 +11,16 @@ DIST_DIR = os.path.join(BASE_DIR, "dist")
 BUILD_DIR = os.path.join(BASE_DIR, "build")
 
 # PyInstaller arguments
+# We now use the .spec file as the source of truth
+spec_file = os.path.join(BASE_DIR, "MicMute.spec")
+
 args = [
-    ENTRY_POINT,
-    '--name=MicMute',
-    '--onefile',
-    '--windowed',  # Hide console
+    spec_file,
     '--noconfirm',
     '--clean',
     f'--distpath={DIST_DIR}',
     f'--workpath={BUILD_DIR}',
-    f'--paths={SRC_DIR}',
-    f'--add-data={ASSETS_SRC}{os.pathsep}{ASSETS_DEST}',
-    '--hidden-import=PySide6',
 ]
 
-print(f"Building EXE with args: {args}")
+print(f"Building EXE using spec file: {spec_file}")
 PyInstaller.__main__.run(args)

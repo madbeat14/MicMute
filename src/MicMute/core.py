@@ -350,26 +350,32 @@ class AudioController:
         """
         if not self.beep_enabled: return
         
-        if self.player is None:
-            self.player = QSoundEffect()
+        # Fallback Beep Function
+        def run_beep():
+            try:
+                cfg = self.beep_config[sound_type]
+                for _ in range(cfg['count']):
+                    Beep(cfg['freq'], cfg['duration'])
+            except Exception: pass
         
         custom_path = self.sound_config.get(sound_type)
         if custom_path and os.path.exists(custom_path):
             try:
+                if self.player is None:
+                    self.player = QSoundEffect()
+                    
                 self.player.setSource(QUrl.fromLocalFile(custom_path))
                 # Default volume
                 self.player.setVolume(0.5)
                 self.player.play()
                 return
-            except: pass
-            
-        # Fallback to Beep
-        def run_beep():
-            cfg = self.beep_config[sound_type]
-            for _ in range(cfg['count']):
-                Beep(cfg['freq'], cfg['duration'])
-        
-        threading.Thread(target=run_beep, daemon=True).start()
+            except Exception as e:
+                print(f"Error playing custom sound: {e}")
+                # Fallback to beep on error
+                threading.Thread(target=run_beep, daemon=True).start()
+        else:
+            # No custom sound or file missing -> Beep
+            threading.Thread(target=run_beep, daemon=True).start()
 
     def get_mute_state(self):
         """

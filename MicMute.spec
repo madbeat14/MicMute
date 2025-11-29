@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\run.py'],
-    pathex=['C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\src'],
+    ['c:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\run.py'],
+    pathex=['c:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\src'],
     binaries=[],
-    datas=[('C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\src\\MicMute\\assets', 'MicMute\\assets')],
-    hiddenimports=['PySide6', 'pycaw'],
+    datas=[('c:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\src\\MicMute\\assets', 'MicMute\\assets')],
+    hiddenimports=['PySide6', 'comtypes', 'pycaw', 'winsound'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

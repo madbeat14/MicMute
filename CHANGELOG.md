@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.9.1] - 2025-11-29
+### Added
+- **Sound Persistence**: Custom sound files are now automatically copied to a local `sounds/` directory on save, ensuring portability and persistence even if the original file is deleted.
+- **Robust Audio Fallback**: The application now gracefully falls back to system beeps if a custom sound file is missing or fails to play.
+
+### Fixed
+- **Custom Sound UI**: Resolved an issue where the "Unmute Sound" option was hidden in the settings dialog.
+- **Settings UI**: The settings dialog now displays only the filename of custom sounds for a cleaner look.
+
+### Changed
+- **Build Configuration**: Updated `MicMute.spec` to include necessary hidden imports (`comtypes`, `pycaw`, `winsound`) for reliable EXE building.
+
 ## [2.9.0] - 2025-11-29
 ### Added
 - **Modular Architecture**: Refactored monolithic `gui.py` into a structured `gui/` package with separate modules for devices, hotkeys, settings, and themes.
