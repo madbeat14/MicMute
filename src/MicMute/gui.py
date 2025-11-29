@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, Q
                              QTableWidgetItem, QHeaderView, QLabel, QMessageBox, QWidget,
                              QGroupBox, QFormLayout, QSpinBox, QComboBox, QSystemTrayIcon,
                              QTabWidget, QCheckBox, QRadioButton, QButtonGroup, QStackedWidget,
-                             QScrollArea, QMenu)
+                             QScrollArea, QMenu, QFileDialog, QLineEdit, QSlider)
 from PySide6.QtCore import Qt, QObject, Signal
 from pycaw.pycaw import AudioUtilities
 from winsound import Beep
@@ -267,8 +267,44 @@ class BeepSettingsWidget(QWidget):
         self.audio = audio_controller
         layout = QVBoxLayout(self)
         
-        # Mute Settings
-        mute_group = QGroupBox("Mute Action")
+        # --- Custom Sounds ---
+        sound_group = QGroupBox("Custom Sounds (Overrides Beep)")
+        sound_layout = QFormLayout()
+        
+        # Mute Sound
+        self.mute_path = QLineEdit()
+        self.mute_path.setReadOnly(True)
+        self.mute_path.setText(self.audio.sound_config.get('mute') or "")
+        
+        mute_btns = QHBoxLayout()
+        self.btn_browse_mute = QPushButton("Browse")
+        self.btn_browse_mute.clicked.connect(lambda: self.browse_sound('mute'))
+        self.btn_play_mute = QPushButton("Preview")
+        self.btn_play_mute.clicked.connect(lambda: self.preview_sound('mute'))
+        mute_btns.addWidget(self.btn_browse_mute)
+        mute_btns.addWidget(self.btn_play_mute)
+        
+        sound_layout.addRow("Mute Sound:", self.mute_path)
+        sound_layout.addRow("", mute_btns)
+        
+        # Unmute Sound
+        self.unmute_path = QLineEdit()
+        self.unmute_path.setReadOnly(True)
+        self.unmute_path.setText(self.audio.sound_config.get('unmute') or "")
+        
+        unmute_btns = QHBoxLayout()
+        self.btn_browse_unmute = QPushButton("Browse")
+        self.btn_browse_unmute.clicked.connect(lambda: self.browse_sound('unmute'))
+        self.btn_play_unmute = QPushButton("Preview")
+        self.btn_play_unmute.clicked.connect(lambda: self.preview_sound('unmute'))
+        unmute_btns.addWidget(self.btn_browse_unmute)
+        unmute_btns.addWidget(self.btn_play_unmute)
+        
+        sound_group.setLayout(sound_layout)
+        layout.addWidget(sound_group)
+
+        # --- Beep Settings ---
+        mute_group = QGroupBox("Fallback Beep Settings")
         mute_layout = QFormLayout()
         
         self.mute_freq = QSpinBox()
@@ -288,15 +324,11 @@ class BeepSettingsWidget(QWidget):
         self.mute_count.setValue(self.audio.beep_config['mute']['count'])
         mute_layout.addRow("Count:", self.mute_count)
         
-        test_mute_btn = QPushButton("Test Mute Beep")
-        test_mute_btn.clicked.connect(self.test_mute)
-        mute_layout.addRow(test_mute_btn)
-        
         mute_group.setLayout(mute_layout)
         layout.addWidget(mute_group)
         
         # Unmute Settings
-        unmute_group = QGroupBox("Unmute Action")
+        unmute_group = QGroupBox("Unmute Beep Settings")
         unmute_layout = QFormLayout()
         
         self.unmute_freq = QSpinBox()
@@ -316,12 +348,30 @@ class BeepSettingsWidget(QWidget):
         self.unmute_count.setValue(self.audio.beep_config['unmute']['count'])
         unmute_layout.addRow("Count:", self.unmute_count)
         
-        test_unmute_btn = QPushButton("Test Unmute Beep")
-        test_unmute_btn.clicked.connect(self.test_unmute)
-        unmute_layout.addRow(test_unmute_btn)
-        
         unmute_group.setLayout(unmute_layout)
         layout.addWidget(unmute_group)
+
+    def browse_sound(self, sound_type):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Sound File", "", "Audio Files (*.wav *.mp3)")
+        if path:
+            if sound_type == 'mute':
+                self.mute_path.setText(path)
+            else:
+                self.unmute_path.setText(path)
+
+    def preview_sound(self, sound_type):
+        # Temporarily use the path from UI to preview
+        path = self.mute_path.text() if sound_type == 'mute' else self.unmute_path.text()
+        if path and os.path.exists(path):
+            # Use AudioController's player but set source manually
+            from PySide6.QtCore import QUrl
+            self.audio.player.setSource(QUrl.fromLocalFile(path))
+            self.audio.player.setVolume(0.5)
+            self.audio.player.play()
+        else:
+            # Fallback test beep
+            if sound_type == 'mute': self.test_mute()
+            else: self.test_unmute()
 
     def test_mute(self):
         freq = self.mute_freq.value()
@@ -339,15 +389,21 @@ class BeepSettingsWidget(QWidget):
 
     def get_config(self):
         return {
-            'mute': {
-                'freq': self.mute_freq.value(),
-                'duration': self.mute_dur.value(),
-                'count': self.mute_count.value()
+            'beep': {
+                'mute': {
+                    'freq': self.mute_freq.value(),
+                    'duration': self.mute_dur.value(),
+                    'count': self.mute_count.value()
+                },
+                'unmute': {
+                    'freq': self.unmute_freq.value(),
+                    'duration': self.unmute_dur.value(),
+                    'count': self.unmute_count.value()
+                }
             },
-            'unmute': {
-                'freq': self.unmute_freq.value(),
-                'duration': self.unmute_dur.value(),
-                'count': self.unmute_count.value()
+            'sound': {
+                'mute': self.mute_path.text(),
+                'unmute': self.unmute_path.text()
             }
         }
 
@@ -595,6 +651,86 @@ class OsdSettingsWidget(QWidget):
             'position': self.position_combo.currentText()
         }
 
+class PersistentOverlaySettingsWidget(QWidget):
+    def __init__(self, audio_controller, parent=None):
+        super().__init__(parent)
+        self.audio = audio_controller
+        layout = QFormLayout(self)
+        
+        self.enabled_cb = QCheckBox("Show Persistent Microphone State")
+        self.enabled_cb.setChecked(self.audio.persistent_overlay.get('enabled', False))
+        
+        self.vu_cb = QCheckBox("Show Voice Activity (VU Meter)")
+        self.vu_cb.setChecked(self.audio.persistent_overlay.get('show_vu', False))
+        
+        self.lock_cb = QCheckBox("Lock Overlay Position")
+        self.lock_cb.setChecked(self.audio.persistent_overlay.get('locked', False))
+        
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(self.audio.persistent_overlay.get('opacity', 80))
+        
+        # Position Control
+        self.position_combo = QComboBox()
+        positions = [
+            "Top-Left", "Top-Center", "Top-Right",
+            "Middle-Left", "Center", "Middle-Right",
+            "Bottom-Left", "Bottom-Center", "Bottom-Right",
+            "Custom"
+        ]
+        self.position_combo.addItems(positions)
+        self.position_combo.setCurrentText(self.audio.persistent_overlay.get('position_mode', 'Custom'))
+        
+        # Sensitivity Control
+        self.sensitivity_slider = QSlider(Qt.Horizontal)
+        self.sensitivity_slider.setRange(1, 50) # 1% to 50% threshold
+        self.sensitivity_slider.setValue(self.audio.persistent_overlay.get('sensitivity', 5))
+        self.sensitivity_label = QLabel(f"{self.sensitivity_slider.value()}%")
+        self.sensitivity_slider.valueChanged.connect(lambda v: self.sensitivity_label.setText(f"{v}%"))
+        
+        layout.addRow(self.enabled_cb)
+        layout.addRow(self.vu_cb)
+        
+        sens_layout = QHBoxLayout()
+        sens_layout.addWidget(self.sensitivity_slider)
+        sens_layout.addWidget(self.sensitivity_label)
+        layout.addRow("Voice Sensitivity:", sens_layout)
+        
+        layout.addRow(self.lock_cb)
+        layout.addRow("Position:", self.position_combo)
+        layout.addRow("Opacity:", self.opacity_slider)
+        
+        # Dependencies
+        self.vu_cb.setEnabled(self.enabled_cb.isChecked())
+        self.lock_cb.setEnabled(self.enabled_cb.isChecked())
+        self.opacity_slider.setEnabled(self.enabled_cb.isChecked())
+        self.position_combo.setEnabled(self.enabled_cb.isChecked())
+        self.sensitivity_slider.setEnabled(self.enabled_cb.isChecked() and self.vu_cb.isChecked())
+        
+        self.enabled_cb.toggled.connect(self.vu_cb.setEnabled)
+        self.enabled_cb.toggled.connect(self.lock_cb.setEnabled)
+        self.enabled_cb.toggled.connect(self.opacity_slider.setEnabled)
+        self.enabled_cb.toggled.connect(self.position_combo.setEnabled)
+        
+        def update_sens_enable():
+            self.sensitivity_slider.setEnabled(self.enabled_cb.isChecked() and self.vu_cb.isChecked())
+            self.sensitivity_label.setEnabled(self.enabled_cb.isChecked() and self.vu_cb.isChecked())
+            
+        self.enabled_cb.toggled.connect(update_sens_enable)
+        self.vu_cb.toggled.connect(update_sens_enable)
+
+    def get_config(self):
+        return {
+            'enabled': self.enabled_cb.isChecked(),
+            'show_vu': self.vu_cb.isChecked(),
+            'locked': self.lock_cb.isChecked(),
+            'position_mode': self.position_combo.currentText(),
+            'opacity': self.opacity_slider.value(),
+            'sensitivity': self.sensitivity_slider.value(),
+            'x': self.audio.persistent_overlay.get('x', 100),
+            'y': self.audio.persistent_overlay.get('y', 100)
+        }
+
 # --- MAIN SETTINGS DIALOG ---
 class SettingsDialog(QDialog):
     def __init__(self, audio_controller, hook, parent=None):
@@ -613,22 +749,33 @@ class SettingsDialog(QDialog):
         self.device_widget = DeviceSelectionWidget()
         self.tabs.addTab(self.device_widget, "General")
         
-        # Tab 2: Audio (Beeps)
+        # Tab 2: Audio (Beeps & Sounds)
         self.beep_widget = BeepSettingsWidget(self.audio)
         self.tabs.addTab(self.beep_widget, "Audio")
         
-        # Tab 3: Misc (Hotkey + AFK + OSD)
+        # Tab 3: Visuals (OSD & Overlay)
+        self.visuals_tab = QWidget()
+        vis_layout = QVBoxLayout(self.visuals_tab)
+        
+        vis_layout.addWidget(QLabel("<b>Notification OSD</b>"))
+        self.osd_widget = OsdSettingsWidget(self.audio)
+        vis_layout.addWidget(self.osd_widget)
+        
+        vis_layout.addSpacing(10)
+        vis_layout.addWidget(QLabel("<b>Persistent Overlay</b>"))
+        self.overlay_widget = PersistentOverlaySettingsWidget(self.audio)
+        vis_layout.addWidget(self.overlay_widget)
+        
+        vis_layout.addStretch()
+        self.tabs.addTab(self.visuals_tab, "Visuals")
+        
+        # Tab 4: Misc (Hotkey + AFK)
         self.misc_tab = QWidget()
         misc_layout = QVBoxLayout(self.misc_tab)
         
         misc_layout.addWidget(QLabel("<b>Hotkey Settings</b>"))
         self.hotkey_widget = HotkeySettingsWidget(self.audio, self.hook)
         misc_layout.addWidget(self.hotkey_widget)
-        
-        misc_layout.addSpacing(10)
-        misc_layout.addWidget(QLabel("<b>On-Screen Feedback</b>"))
-        self.osd_widget = OsdSettingsWidget(self.audio)
-        misc_layout.addWidget(self.osd_widget)
         
         misc_layout.addSpacing(10)
         misc_layout.addWidget(QLabel("<b>AFK Timeout</b>"))
@@ -663,7 +810,9 @@ class SettingsDialog(QDialog):
         self.audio.update_sync_ids(self.device_widget.get_sync_ids())
         
         # 2. Beeps
-        self.audio.update_beep_config(self.beep_widget.get_config())
+        audio_cfg = self.beep_widget.get_config()
+        self.audio.update_beep_config(audio_cfg['beep'])
+        self.audio.update_sound_config(audio_cfg['sound'])
         
         # 3. Hotkey
         new_hotkey = self.hotkey_widget.get_config()
@@ -673,8 +822,9 @@ class SettingsDialog(QDialog):
         # 4. AFK
         self.audio.update_afk_config(self.afk_widget.get_config())
         
-        # 5. OSD
+        # 5. Visuals (OSD & Overlay)
         self.audio.update_osd_config(self.osd_widget.get_config())
+        self.audio.update_persistent_overlay(self.overlay_widget.get_config())
         
         self.accept()
         

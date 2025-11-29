@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, Signal
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QPixmap, QCursor
 from PySide6.QtSvg import QSvgRenderer
+import ctypes
 
 class MetroOSD(QWidget):
     def __init__(self, icon_unmuted_path, icon_muted_path):
@@ -135,3 +136,242 @@ class MetroOSD(QWidget):
                 x = (self.width() - icon_size) // 2
                 y = (self.height() - icon_size) // 2
                 renderer.render(painter, QRect(x, y, icon_size, icon_size))
+
+# --- PERSISTENT OVERLAY ---
+try:
+    from .utils import IAudioMeterInformation
+    from comtypes import client, GUID, IUnknown
+    HAS_COM = True
+except ImportError:
+    HAS_COM = False
+
+from PySide6.QtWidgets import QProgressBar, QHBoxLayout
+
+class StatusOverlay(QWidget):
+    config_changed = Signal(dict)
+
+    def __init__(self, icon_unmuted_path, icon_muted_path):
+        super().__init__()
+        
+        self.setWindowFlags(
+            Qt.FramelessWindowHint | 
+            Qt.WindowStaysOnTopHint | 
+            Qt.Tool
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        self.icon_unmuted = icon_unmuted_path
+        self.icon_muted = icon_muted_path
+        self.is_muted = False
+        self.show_vu = False
+        self.target_device_id = None
+        
+        # Layout
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(10, 5, 10, 5)
+        self.layout.setSpacing(5)
+        
+        # Icon Label
+        self.icon_label = QLabel()
+        self.icon_label.setFixedSize(24, 24)
+        self.layout.addWidget(self.icon_label)
+        
+        # Activity LED (Dot)
+        self.led_dot = QLabel()
+        self.led_dot.setFixedSize(10, 10)
+        self.led_dot.setStyleSheet("""
+            background-color: transparent;
+            border-radius: 5px;
+        """)
+        self.layout.addWidget(self.led_dot)
+        
+        # Styling
+        self.setStyleSheet("""
+            StatusOverlay {
+                background-color: rgba(30, 30, 30, 200);
+                border-radius: 15px;
+                border: 1px solid #444;
+            }
+        """)
+        
+        # Dragging
+        self.dragging = False
+        self.offset = None
+        
+        # Audio Meter
+        self.meter = None
+        self.meter_timer = QTimer()
+        self.meter_timer.setInterval(50) # 20Hz
+        self.meter_timer.timeout.connect(self.sample_audio)
+        
+        self.resize(60, 40)
+        
+        self.position_mode = 'Custom'
+        self.locked = False
+        self.current_config = {}
+        self.sensitivity = 0.05 # Default 5%
+        self.is_active = False
+        
+    def set_config(self, config):
+        self.current_config = config.copy()
+        if not config.get('enabled', False):
+            self.hide()
+            self.stop_meter()
+            return
+            
+        self.show_vu = config.get('show_vu', False)
+        opacity = config.get('opacity', 80) / 100.0
+        self.setWindowOpacity(opacity)
+        
+        self.led_dot.setVisible(self.show_vu)
+        
+        # Resize based on content
+        width = 60 if self.show_vu else 45
+        self.resize(width, 40)
+        
+        # Position
+        self.position_mode = config.get('position_mode', 'Custom')
+        self.locked = config.get('locked', False)
+        self.sensitivity = config.get('sensitivity', 5) / 100.0
+        
+        if self.position_mode == 'Custom':
+            x = config.get('x', 100)
+            y = config.get('y', 100)
+            self.move(x, y)
+        else:
+            self.reposition_predefined()
+        
+        self.show()
+        self.update_status(self.is_muted) # Refresh state
+
+    def set_target_device(self, device_id):
+        self.target_device_id = device_id
+        # Restart meter if running to switch device
+        if self.meter_timer.isActive():
+            self.stop_meter()
+            self.start_meter()
+
+    def reposition_predefined(self):
+        cursor_pos = QCursor.pos()
+        screen = QApplication.screenAt(cursor_pos)
+        if not screen:
+            screen = QApplication.primaryScreen()
+            
+        geo = screen.geometry()
+        w, h = self.width(), self.height()
+        margin = 20
+        
+        x, y = geo.x(), geo.y()
+        
+        # Horizontal
+        if "Left" in self.position_mode:
+            x += margin
+        elif "Right" in self.position_mode:
+            x += geo.width() - w - margin
+        else: # Center/Middle
+            x += (geo.width() - w) // 2
+            
+        # Vertical
+        if "Top" in self.position_mode:
+            y += margin
+        elif "Bottom" in self.position_mode:
+            y += geo.height() - h - margin
+        else: # Middle/Center
+            y += (geo.height() - h) // 2
+            
+        self.move(x, y)
+
+    def update_status(self, is_muted):
+        self.is_muted = is_muted
+        
+        # Update Icon
+        path = self.icon_muted if is_muted else self.icon_unmuted
+        pixmap = QIcon(path).pixmap(24, 24)
+        self.icon_label.setPixmap(pixmap)
+        
+        # Manage Meter
+        if is_muted or not self.isVisible() or not self.show_vu:
+            self.stop_meter()
+            self.set_active(False)
+        else:
+            self.start_meter()
+
+    def set_active(self, active):
+        if self.is_active == active: return
+        self.is_active = active
+        
+        color = "#00FF00" if active else "transparent" # Bright Green or Transparent
+        self.led_dot.setStyleSheet(f"""
+            background-color: {color};
+            border-radius: 5px;
+        """)
+
+    def start_meter(self):
+        if not HAS_COM: return
+        if self.meter_timer.isActive(): return
+        
+        try:
+            from pycaw.pycaw import AudioUtilities
+            
+            enumerator = AudioUtilities.GetDeviceEnumerator()
+            
+            device = None
+            if self.target_device_id:
+                try:
+                    device = enumerator.GetDevice(self.target_device_id)
+                except Exception:
+                    print(f"Could not find device with ID: {self.target_device_id}")
+            
+            if not device:
+                # Fallback to default
+                device = enumerator.GetDefaultAudioEndpoint(1, 1) # eCapture, eMultimedia
+            
+            # Use CLSCTX_ALL (23) to ensure compatibility
+            unknown = device.Activate(IAudioMeterInformation._iid_, 23, None) 
+            self.meter = unknown.QueryInterface(IAudioMeterInformation)
+            self.meter_timer.start()
+        except Exception:
+            pass
+
+    def stop_meter(self):
+        self.meter_timer.stop()
+        self.meter = None
+        self.set_active(False)
+
+    def sample_audio(self):
+        if not self.meter: return
+        try:
+            # GetPeakValue returns the float value directly because of ['out'] parameter
+            peak_value = self.meter.GetPeakValue()
+            
+            # Threshold Logic
+            is_loud = peak_value > self.sensitivity
+            self.set_active(is_loud)
+            
+        except Exception:
+            self.stop_meter()
+
+    # Dragging Logic
+    def mousePressEvent(self, event):
+        if self.locked: return
+        if event.button() == Qt.LeftButton:
+            self.dragging = True
+            self.offset = event.globalPos() - self.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.locked: return
+        if self.dragging and self.offset:
+            self.move(event.globalPos() - self.offset)
+
+    def mouseReleaseEvent(self, event):
+        if self.dragging:
+            self.dragging = False
+            # Save new position and switch to Custom mode
+            self.current_config['x'] = self.x()
+            self.current_config['y'] = self.y()
+            self.current_config['position_mode'] = 'Custom'
+            self.config_changed.emit(self.current_config)
+
+    def closeEvent(self, event):
+        self.stop_meter()
+        super().closeEvent(event)

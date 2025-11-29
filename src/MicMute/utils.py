@@ -237,6 +237,20 @@ try:
                       (['in'], ctypes.c_int, 'bVisible')),
         ]
 
+    class IAudioMeterInformation(IUnknown):
+        _iid_ = GUID("{C02216F6-8C67-4B5B-9D00-D008E73E0064}")
+        _methods_ = [
+            COMMETHOD([], HRESULT, 'GetPeakValue',
+                      (['out'], POINTER(ctypes.c_float), 'pfPeak')),
+            COMMETHOD([], HRESULT, 'GetMeteringChannelCount',
+                      (['out'], POINTER(wintypes.DWORD), 'pnChannelCount')),
+            COMMETHOD([], HRESULT, 'GetChannelsPeakValues',
+                      (['in'], wintypes.DWORD, 'u32ChannelCount'),
+                      (['out'], POINTER(ctypes.c_float), 'afPeakValues')),
+            COMMETHOD([], HRESULT, 'QueryHardwareSupport',
+                      (['out'], POINTER(wintypes.DWORD), 'pdwHardwareSupportMask')),
+        ]
+
     def set_default_device(device_id):
         try:
             policy_config = client.CreateObject(

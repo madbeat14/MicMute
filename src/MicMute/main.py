@@ -9,9 +9,10 @@ from PySide6.QtGui import QIcon, QAction
 warnings.simplefilter("ignore", UserWarning)
 
 from .core import signals, audio, CONFIG_FILE
-from .utils import NativeKeyboardHook, is_system_light_theme, get_idle_duration
+from .utils import NativeKeyboardHook, is_system_light_theme, get_idle_duration, set_default_device
+from pycaw.pycaw import AudioUtilities
 from .gui import ThemeListener, DeviceSelectionDialog, SettingsDialog
-from .overlay import MetroOSD
+from .overlay import MetroOSD, StatusOverlay
 from PySide6.QtCore import QTimer
 
 # --- CONFIGURATION ---
@@ -54,6 +55,12 @@ def main():
     osd = MetroOSD(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
     osd.set_config(audio.osd_config)
     
+    # Persistent Overlay Initialization
+    overlay = StatusOverlay(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
+    overlay.set_config(audio.persistent_overlay)
+    overlay.set_target_device(audio.device_id)
+    overlay.config_changed.connect(audio.update_persistent_overlay)
+    
     def get_current_icon(muted, light_theme):
         if light_theme: return icon_black_muted if muted else icon_black_unmuted
         else: return icon_white_muted if muted else icon_white_unmuted
@@ -69,31 +76,58 @@ def main():
     
     # Menu Functions
     # Dialog Instances
-    dialogs = {'settings': None, 'select': None}
+    dialogs = {'settings': None}
 
-    def show_select_dialog():
-        try:
-            if dialogs['select'] and dialogs['select'].isVisible():
-                dialogs['select'].activateWindow()
-                dialogs['select'].raise_()
-                return
-        except RuntimeError:
-            dialogs['select'] = None
-
-        dialog = DeviceSelectionDialog()
-        dialogs['select'] = dialog
+    def populate_devices_menu():
+        submenu_devices.clear()
         
-        def on_select_finished(result):
-            if result == QDialog.Accepted and dialog.selected_device_id:
-                if audio.set_device_by_id(dialog.selected_device_id):
-                    tray.showMessage("Success", "Microphone selected!", QSystemTrayIcon.Information, 2000)
-                else:
-                    tray.showMessage("Error", "Failed to connect.", QSystemTrayIcon.Warning, 2000)
-            dialogs['select'] = None
-            gc.collect()
-
-        dialog.finished.connect(on_select_finished)
-        dialog.show()
+        try:
+            # Get All Devices
+            all_devices_raw = AudioUtilities.GetAllDevices()
+            enumerator = AudioUtilities.GetDeviceEnumerator()
+            collection = enumerator.EnumAudioEndpoints(1, 1) # eCapture, eAll
+            count = collection.GetCount()
+            capture_ids = set()
+            for i in range(count):
+                dev = collection.Item(i)
+                capture_ids.add(dev.GetId())
+            
+            # Filter and Sort
+            devices = []
+            for dev in all_devices_raw:
+                if dev.id in capture_ids:
+                    devices.append(dev)
+            
+            # Current Master ID
+            current_id = audio.device_id
+            
+            for dev in devices:
+                name = dev.FriendlyName
+                dev_id = dev.id
+                
+                action = QAction(name, menu)
+                action.setCheckable(True)
+                action.setChecked(dev_id == current_id)
+                
+                # Handler
+                def on_triggered(checked, d_id=dev_id):
+                    if set_default_device(d_id):
+                        if audio.set_device_by_id(d_id):
+                            tray.showMessage("Success", f"Switched to: {name}", QSystemTrayIcon.Information, 2000)
+                            overlay.set_target_device(d_id)
+                        else:
+                            tray.showMessage("Error", "Failed to set application device.", QSystemTrayIcon.Warning, 2000)
+                    else:
+                        tray.showMessage("Error", "Failed to set Windows default.", QSystemTrayIcon.Warning, 2000)
+                
+                action.triggered.connect(lambda checked, d_id=dev_id: on_triggered(checked, d_id))
+                submenu_devices.addAction(action)
+                
+        except Exception as e:
+            print(f"Error populating menu: {e}")
+            error_action = QAction("Error loading devices", menu)
+            error_action.setEnabled(False)
+            submenu_devices.addAction(error_action)
 
     def show_settings_dialog():
         try:
@@ -112,6 +146,8 @@ def main():
             if result == QDialog.Accepted:
                 # Update OSD config after settings close
                 osd.set_config(audio.osd_config)
+                overlay.set_config(audio.persistent_overlay)
+                overlay.set_target_device(audio.device_id)
             dialogs['settings'] = None
             gc.collect()
 
@@ -123,10 +159,10 @@ def main():
 
     menu = QMenu()
     
-    # Select Device
-    action_select = QAction("Select Microphone...")
-    action_select.triggered.connect(show_select_dialog)
-    menu.addAction(action_select)
+    # Select Device Submenu
+    submenu_devices = QMenu("Select Microphone", menu)
+    submenu_devices.aboutToShow.connect(populate_devices_menu)
+    menu.addMenu(submenu_devices)
     
     menu.addSeparator()
     
@@ -163,8 +199,10 @@ def main():
             tray.setToolTip(f"Mic Mute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
         
         # Trigger OSD if muted state changed
-        if is_muted is not None and audio.osd_config.get('enabled', False):
-            osd.show_osd(is_muted)
+        if is_muted is not None:
+            if audio.osd_config.get('enabled', False):
+                osd.show_osd(is_muted)
+            overlay.update_status(is_muted)
 
     signals.update_icon.connect(lambda m: update_tray_state(is_muted=m))
     signals.theme_changed.connect(lambda: update_tray_state(is_muted=None))

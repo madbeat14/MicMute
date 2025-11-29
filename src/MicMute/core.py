@@ -2,7 +2,8 @@ import os
 import json
 import gc
 from winsound import Beep
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QUrl
+from PySide6.QtMultimedia import QSoundEffect
 from pycaw.pycaw import AudioUtilities
 
 # --- CONFIGURATION ---
@@ -30,6 +31,10 @@ class AudioController:
             'mute': {'freq': 650, 'duration': 180, 'count': 2},
             'unmute': {'freq': 700, 'duration': 200, 'count': 1}
         }
+        self.sound_config = {
+            'mute': None,
+            'unmute': None
+        }
         # New Hotkey Config Structure
         self.hotkey_config = {
             'mode': 'toggle', # 'toggle' or 'separate'
@@ -39,8 +44,22 @@ class AudioController:
         }
         self.afk_config = {'enabled': False, 'timeout': 60}
         self.osd_config = {'enabled': False, 'duration': 1500, 'position': 'Bottom-Center', 'size': 150}
+        self.persistent_overlay = {
+            'enabled': False,
+            'show_vu': False,
+            'opacity': 80,
+            'x': 100,
+            'y': 100,
+            'position_mode': 'Custom',
+            'locked': False,
+            'sensitivity': 5
+        }
         self.sync_ids = []
         self.BEEP_ERROR = (200, 500)
+        
+        # Audio Player
+        self.player = None
+        
         self.load_config()
 
     def load_config(self):
@@ -55,6 +74,9 @@ class AudioController:
                     saved_beeps = data.get('beep_config')
                     if saved_beeps: self.beep_config.update(saved_beeps)
                     
+                    saved_sounds = data.get('sound_config')
+                    if saved_sounds: self.sound_config.update(saved_sounds)
+                    
                     saved_hotkey = data.get('hotkey')
                     if saved_hotkey:
                         # Migration from old format {'vk': ..., 'name': ...}
@@ -68,6 +90,9 @@ class AudioController:
 
                     saved_osd = data.get('osd')
                     if saved_osd: self.osd_config.update(saved_osd)
+                    
+                    saved_overlay = data.get('persistent_overlay')
+                    if saved_overlay: self.persistent_overlay.update(saved_overlay)
         except: pass
 
     def save_config(self):
@@ -78,9 +103,11 @@ class AudioController:
                     'sync_ids': self.sync_ids,
                     'beep_enabled': self.beep_enabled,
                     'beep_config': self.beep_config,
+                    'sound_config': self.sound_config,
                     'hotkey': self.hotkey_config,
                     'afk': self.afk_config,
-                    'osd': self.osd_config
+                    'osd': self.osd_config,
+                    'persistent_overlay': self.persistent_overlay
                 }, f)
         except: pass
 
@@ -102,6 +129,10 @@ class AudioController:
 
     def update_osd_config(self, new_config):
         self.osd_config = new_config
+        self.save_config()
+        
+    def update_persistent_overlay(self, new_config):
+        self.persistent_overlay = new_config
         self.save_config()
         
     def update_sync_ids(self, ids):
@@ -168,19 +199,60 @@ class AudioController:
         if not self.volume: return
         try:
             current = self.volume.GetMute()
+            if current != new_state:
+                self.volume.SetMute(new_state, None)
+                
+                # Play Sound (Custom or Beep)
+                sound_type = 'mute' if new_state else 'unmute'
+                self.play_sound(sound_type)
             
-            # Always apply if forced, or if changed
-            # But here we want to ensure sync even if main is already in state?
-            # Optimization: Only apply if changed, but for sync we might want to force slaves.
-            # Let's stick to "if changed" for main, but force slaves.
+            # Sync Slaves (Always force to match target state)
+            for slave_id in self.sync_ids:
+                self.set_device_mute(slave_id, new_state)
+                
+            signals.update_icon.emit(new_state)
+            
+        except Exception as e:
+            print(f"Error setting mute state: {e}")
+            
+    def update_sound_config(self, new_config):
+        self.sound_config = new_config
+        self.save_config()
+
+    def play_sound(self, sound_type):
+        """Plays custom sound if set, else fallback to beep."""
+        if not self.beep_enabled: return
+        
+        if self.player is None:
+            self.player = QSoundEffect()
+        
+        custom_path = self.sound_config.get(sound_type)
+        if custom_path and os.path.exists(custom_path):
+            try:
+                self.player.setSource(QUrl.fromLocalFile(custom_path))
+                self.player.setVolume(0.5) # Default volume
+                self.player.play()
+                return
+            except: pass
+            
+        # Fallback to Beep
+        cfg = self.beep_config[sound_type]
+        for _ in range(cfg['count']):
+            Beep(cfg['freq'], cfg['duration'])
+
+    # ... existing methods ...
+
+    def set_mute_state(self, new_state):
+        if not self.volume: return
+        try:
+            current = self.volume.GetMute()
             
             if current != new_state:
                 self.volume.SetMute(new_state, None)
                 
-                if self.beep_enabled:
-                    cfg = self.beep_config['mute'] if new_state else self.beep_config['unmute']
-                    for _ in range(cfg['count']):
-                        Beep(cfg['freq'], cfg['duration'])
+                # Play Sound (Custom or Beep)
+                sound_type = 'mute' if new_state else 'unmute'
+                self.play_sound(sound_type)
             
             # Sync Slaves (Always force to match target state)
             for slave_id in self.sync_ids:
