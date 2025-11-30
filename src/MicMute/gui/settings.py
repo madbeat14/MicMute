@@ -26,16 +26,33 @@ class BeepSettingsWidget(QWidget):
         
         layout = QVBoxLayout(self)
         
+        # --- Audio Mode Selection ---
+        mode_layout = QHBoxLayout()
+        mode_label = QLabel("Audio Mode:")
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Beeps", "Custom Sounds"])
+        
+        # Set current mode
+        current_mode = self.audio.audio_mode
+        self.mode_combo.setCurrentText("Custom Sounds" if current_mode == 'custom' else "Beeps")
+        
+        mode_layout.addWidget(mode_label)
+        mode_layout.addWidget(self.mode_combo)
+        mode_layout.addStretch()
+        
+        layout.addLayout(mode_layout)
+        
         # --- Custom Sounds ---
-        sound_group = QGroupBox("Custom Sounds (Overrides Beep)")
+        self.sound_group = QGroupBox("Custom Sounds")
         sound_layout = QFormLayout()
         
         # Mute Sound
         self.mute_path = QLineEdit()
         self.mute_path.setReadOnly(True)
         # Show only basename
-        mute_cfg = self.audio.sound_config.get('mute')
-        self.mute_path.setText(os.path.basename(mute_cfg) if mute_cfg else "")
+        mute_cfg = self.audio.sound_config.get('mute', {})
+        mute_file = mute_cfg.get('file') if isinstance(mute_cfg, dict) else mute_cfg
+        self.mute_path.setText(os.path.basename(mute_file) if mute_file else "")
         
         mute_btns = QHBoxLayout()
         self.btn_browse_mute = QPushButton("Browse")
@@ -45,15 +62,35 @@ class BeepSettingsWidget(QWidget):
         mute_btns.addWidget(self.btn_browse_mute)
         mute_btns.addWidget(self.btn_play_mute)
         
+        # Mute Volume
+        self.mute_vol_slider = QSlider(Qt.Horizontal)
+        self.mute_vol_slider.setRange(0, 200)
+        self.mute_vol_spin = QSpinBox()
+        self.mute_vol_spin.setRange(0, 200)
+        self.mute_vol_spin.setSuffix("%")
+        
+        mute_vol = mute_cfg.get('volume', 50) if isinstance(mute_cfg, dict) else 50
+        self.mute_vol_slider.setValue(mute_vol)
+        self.mute_vol_spin.setValue(mute_vol)
+        
+        self.mute_vol_slider.valueChanged.connect(self.mute_vol_spin.setValue)
+        self.mute_vol_spin.valueChanged.connect(self.mute_vol_slider.setValue)
+        
+        mute_vol_layout = QHBoxLayout()
+        mute_vol_layout.addWidget(self.mute_vol_slider)
+        mute_vol_layout.addWidget(self.mute_vol_spin)
+        
         sound_layout.addRow("Mute Sound:", self.mute_path)
         sound_layout.addRow("", mute_btns)
+        sound_layout.addRow("Volume:", mute_vol_layout)
         
         # Unmute Sound
         self.unmute_path = QLineEdit()
         self.unmute_path.setReadOnly(True)
         # Show only basename
-        unmute_cfg = self.audio.sound_config.get('unmute')
-        self.unmute_path.setText(os.path.basename(unmute_cfg) if unmute_cfg else "")
+        unmute_cfg = self.audio.sound_config.get('unmute', {})
+        unmute_file = unmute_cfg.get('file') if isinstance(unmute_cfg, dict) else unmute_cfg
+        self.unmute_path.setText(os.path.basename(unmute_file) if unmute_file else "")
         
         unmute_btns = QHBoxLayout()
         self.btn_browse_unmute = QPushButton("Browse")
@@ -63,14 +100,33 @@ class BeepSettingsWidget(QWidget):
         unmute_btns.addWidget(self.btn_browse_unmute)
         unmute_btns.addWidget(self.btn_play_unmute)
         
+        # Unmute Volume
+        self.unmute_vol_slider = QSlider(Qt.Horizontal)
+        self.unmute_vol_slider.setRange(0, 200)
+        self.unmute_vol_spin = QSpinBox()
+        self.unmute_vol_spin.setRange(0, 200)
+        self.unmute_vol_spin.setSuffix("%")
+        
+        unmute_vol = unmute_cfg.get('volume', 50) if isinstance(unmute_cfg, dict) else 50
+        self.unmute_vol_slider.setValue(unmute_vol)
+        self.unmute_vol_spin.setValue(unmute_vol)
+        
+        self.unmute_vol_slider.valueChanged.connect(self.unmute_vol_spin.setValue)
+        self.unmute_vol_spin.valueChanged.connect(self.unmute_vol_slider.setValue)
+        
+        unmute_vol_layout = QHBoxLayout()
+        unmute_vol_layout.addWidget(self.unmute_vol_slider)
+        unmute_vol_layout.addWidget(self.unmute_vol_spin)
+        
         sound_layout.addRow("Unmute Sound:", self.unmute_path)
         sound_layout.addRow("", unmute_btns)
+        sound_layout.addRow("Volume:", unmute_vol_layout)
         
-        sound_group.setLayout(sound_layout)
-        layout.addWidget(sound_group)
+        self.sound_group.setLayout(sound_layout)
+        layout.addWidget(self.sound_group)
 
         # --- Beep Settings ---
-        mute_group = QGroupBox("Fallback Beep Settings")
+        self.beep_group_mute = QGroupBox("Mute Beep Settings")
         mute_layout = QFormLayout()
         
         self.mute_freq = QSpinBox()
@@ -90,11 +146,11 @@ class BeepSettingsWidget(QWidget):
         self.mute_count.setValue(self.audio.beep_config['mute']['count'])
         mute_layout.addRow("Count:", self.mute_count)
         
-        mute_group.setLayout(mute_layout)
-        layout.addWidget(mute_group)
+        self.beep_group_mute.setLayout(mute_layout)
+        layout.addWidget(self.beep_group_mute)
         
         # Unmute Settings
-        unmute_group = QGroupBox("Unmute Beep Settings")
+        self.beep_group_unmute = QGroupBox("Unmute Beep Settings")
         unmute_layout = QFormLayout()
         
         self.unmute_freq = QSpinBox()
@@ -114,8 +170,40 @@ class BeepSettingsWidget(QWidget):
         self.unmute_count.setValue(self.audio.beep_config['unmute']['count'])
         unmute_layout.addRow("Count:", self.unmute_count)
         
-        unmute_group.setLayout(unmute_layout)
-        layout.addWidget(unmute_group)
+        self.beep_group_unmute.setLayout(unmute_layout)
+        layout.addWidget(self.beep_group_unmute)
+        
+        # Logic
+        self.mode_combo.currentTextChanged.connect(self.toggle_mode_visibility)
+        self.mode_combo.currentTextChanged.connect(self.apply_mode)
+        
+        # Instant Apply for Volume
+        self.mute_vol_slider.valueChanged.connect(self.apply_settings)
+        self.mute_vol_spin.valueChanged.connect(self.apply_settings)
+        self.unmute_vol_slider.valueChanged.connect(self.apply_settings)
+        self.unmute_vol_spin.valueChanged.connect(self.apply_settings)
+        
+        # Initial Visibility
+        self.toggle_mode_visibility(self.mode_combo.currentText())
+
+    def apply_settings(self):
+        """
+        Applies the current sound configuration to the audio controller.
+        """
+        # We only want to update the sound config, specifically volumes
+        # But get_config returns everything. 
+        # Ideally we should just update what changed, but updating all sound config is safe.
+        # However, get_config does file copying which we don't want on every slider move if pending.
+        # But pending sounds are only set on browse, so it's fine.
+        
+        # Optimization: Construct config directly to avoid file copy overhead if not needed
+        # But get_config handles the structure logic.
+        # Let's use get_config but be aware of copy. 
+        # Actually, get_config clears pending_sounds, so it's a one-time copy.
+        # If we drag slider, pending_sounds is empty, so no copy.
+        
+        full_config = self.get_config()
+        self.audio.update_sound_config(full_config['sound'])
 
     def browse_sound(self, sound_type):
         """
@@ -145,7 +233,8 @@ class BeepSettingsWidget(QWidget):
         path = self.pending_sounds.get(sound_type)
         if not path:
             # Check existing config
-            path = self.audio.sound_config.get(sound_type)
+            cfg = self.audio.sound_config.get(sound_type, {})
+            path = cfg.get('file') if isinstance(cfg, dict) else cfg
             
         if path and os.path.exists(path):
             # Use AudioController's player but set source manually
@@ -155,7 +244,9 @@ class BeepSettingsWidget(QWidget):
                 self.audio.player = QSoundEffect()
                 
             self.audio.player.setSource(QUrl.fromLocalFile(path))
-            self.audio.player.setVolume(0.5)
+            # Get volume from slider
+            vol = self.mute_vol_slider.value() if sound_type == 'mute' else self.unmute_vol_slider.value()
+            self.audio.player.setVolume(vol / 100.0)
             self.audio.player.play()
         else:
             # Fallback test beep
@@ -182,6 +273,51 @@ class BeepSettingsWidget(QWidget):
         for _ in range(count):
             Beep(freq, dur)
 
+    def toggle_mode_visibility(self, mode_text):
+        is_custom = mode_text == "Custom Sounds"
+        self.sound_group.setVisible(is_custom)
+        self.beep_group_mute.setVisible(not is_custom)
+        self.beep_group_unmute.setVisible(not is_custom)
+
+    def apply_mode(self, mode_text):
+        mode = 'custom' if mode_text == "Custom Sounds" else 'beep'
+        self.audio.update_audio_mode(mode)
+
+    def on_setting_changed(self, key, value):
+        if key == 'audio_mode':
+            self.blockSignals(True)
+            self.mode_combo.setCurrentText("Custom Sounds" if value == 'custom' else "Beeps")
+            self.toggle_mode_visibility(self.mode_combo.currentText())
+            self.blockSignals(False)
+        elif key == 'beep_config':
+            self.blockSignals(True)
+            self.mute_freq.setValue(value['mute']['freq'])
+            self.mute_dur.setValue(value['mute']['duration'])
+            self.mute_count.setValue(value['mute']['count'])
+            self.unmute_freq.setValue(value['unmute']['freq'])
+            self.unmute_dur.setValue(value['unmute']['duration'])
+            self.unmute_count.setValue(value['unmute']['count'])
+            self.blockSignals(False)
+        elif key == 'sound_config':
+            # Update basenames and volumes
+            self.blockSignals(True)
+            
+            mute_cfg = value.get('mute', {})
+            mute_file = mute_cfg.get('file') if isinstance(mute_cfg, dict) else mute_cfg
+            self.mute_path.setText(os.path.basename(mute_file) if mute_file else "")
+            mute_vol = mute_cfg.get('volume', 50) if isinstance(mute_cfg, dict) else 50
+            self.mute_vol_slider.setValue(mute_vol)
+            self.mute_vol_spin.setValue(mute_vol)
+            
+            unmute_cfg = value.get('unmute', {})
+            unmute_file = unmute_cfg.get('file') if isinstance(unmute_cfg, dict) else unmute_cfg
+            self.unmute_path.setText(os.path.basename(unmute_file) if unmute_file else "")
+            unmute_vol = unmute_cfg.get('volume', 50) if isinstance(unmute_cfg, dict) else 50
+            self.unmute_vol_slider.setValue(unmute_vol)
+            self.unmute_vol_spin.setValue(unmute_vol)
+            
+            self.blockSignals(False)
+
     def get_config(self):
         """
         Retrieves the current beep and sound configuration.
@@ -201,11 +337,22 @@ class BeepSettingsWidget(QWidget):
                 filename = os.path.basename(source_path)
                 dest_path = os.path.join(sounds_dir, filename)
                 shutil.copy2(source_path, dest_path)
-                final_sound_config[stype] = dest_path
+                
+                # Update the specific key in the dict
+                if stype not in final_sound_config: final_sound_config[stype] = {}
+                final_sound_config[stype]['file'] = dest_path
             except Exception as e:
                 print(f"Error copying sound: {e}")
                 # Fallback to source path
-                final_sound_config[stype] = source_path
+                if stype not in final_sound_config: final_sound_config[stype] = {}
+                final_sound_config[stype]['file'] = source_path
+        
+        # Update volumes
+        if 'mute' not in final_sound_config: final_sound_config['mute'] = {}
+        final_sound_config['mute']['volume'] = self.mute_vol_slider.value()
+        
+        if 'unmute' not in final_sound_config: final_sound_config['unmute'] = {}
+        final_sound_config['unmute']['volume'] = self.unmute_vol_slider.value()
         
         # Clear pending as they are now committed (if save is successful)
         # Note: If save fails later, we might lose pending state, but get_config implies intent to save.

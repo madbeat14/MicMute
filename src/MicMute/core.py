@@ -74,6 +74,11 @@ class AudioController:
     def beep_enabled(self, value): self.config_manager.beep_enabled = value
     
     @property
+    def audio_mode(self): return self.config_manager.audio_mode
+    @audio_mode.setter
+    def audio_mode(self, value): self.config_manager.audio_mode = value
+    
+    @property
     def sync_ids(self): return self.config_manager.sync_ids
     @sync_ids.setter
     def sync_ids(self, value): self.config_manager.sync_ids = value
@@ -149,6 +154,17 @@ class AudioController:
         self.beep_enabled = enabled
         self.save_config()
         signals.setting_changed.emit('beep_enabled', enabled)
+
+    def update_audio_mode(self, mode):
+        """
+        Updates the audio feedback mode.
+        
+        Args:
+            mode (str): 'beep' or 'custom'.
+        """
+        self.audio_mode = mode
+        self.save_config()
+        signals.setting_changed.emit('audio_mode', mode)
 
     def update_beep_config(self, new_config):
         """
@@ -369,10 +385,23 @@ class AudioController:
                     Beep(cfg['freq'], cfg['duration'])
             except Exception: pass
         
-        # Resolve Path
+        # Check Audio Mode
+        if self.audio_mode == 'beep':
+            threading.Thread(target=run_beep, daemon=True).start()
+            return
+
+        # Custom Mode Logic
         from .utils import get_internal_asset, get_external_sound_dir
         
-        filename = self.sound_config.get(sound_type)
+        sound_cfg = self.sound_config.get(sound_type, {})
+        # Handle case where config might still be old string (should be handled by migration but safety first)
+        if isinstance(sound_cfg, str):
+            filename = sound_cfg
+            volume = 50
+        else:
+            filename = sound_cfg.get('file')
+            volume = sound_cfg.get('volume', 50)
+            
         path = None
         
         if not filename or filename == "DEFAULT":
@@ -388,8 +417,8 @@ class AudioController:
                     self.player = QSoundEffect()
                     
                 self.player.setSource(QUrl.fromLocalFile(path))
-                # Default volume
-                self.player.setVolume(0.5)
+                # Apply volume (0-100 -> 0.0-1.0)
+                self.player.setVolume(volume / 100.0)
                 self.player.play()
                 return
             except Exception as e:
@@ -406,7 +435,7 @@ class AudioController:
                     try:
                         if self.player is None: self.player = QSoundEffect()
                         self.player.setSource(QUrl.fromLocalFile(internal_path))
-                        self.player.setVolume(0.5)
+                        self.player.setVolume(volume / 100.0)
                         self.player.play()
                         return
                     except: pass

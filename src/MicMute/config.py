@@ -13,13 +13,14 @@ class ConfigManager:
         self.beep_enabled = True
         self.sync_ids = []
         
+        self.audio_mode = 'beep' # 'beep' or 'custom'
         self.beep_config = {
             'mute': {'freq': 650, 'duration': 180, 'count': 2},
             'unmute': {'freq': 700, 'duration': 200, 'count': 1}
         }
         self.sound_config = {
-            'mute': None,
-            'unmute': None
+            'mute': {'file': None, 'volume': 50},
+            'unmute': {'file': None, 'volume': 50}
         }
         self.hotkey_config = {
             'mode': 'toggle',
@@ -50,13 +51,33 @@ class ConfigManager:
                     data = json.load(f)
                     self.device_id = data.get('device_id')
                     self.beep_enabled = data.get('beep_enabled', True)
+                    self.audio_mode = data.get('audio_mode', 'beep')
                     self.sync_ids = data.get('sync_ids', [])
                     
                     saved_beeps = data.get('beep_config')
                     if saved_beeps: self.beep_config.update(saved_beeps)
                     
                     saved_sounds = data.get('sound_config')
-                    if saved_sounds: self.sound_config.update(saved_sounds)
+                    if saved_sounds:
+                        # Migration: Check if old format (simple key-value)
+                        # New format: {'mute': {'file': ..., 'volume': ...}, ...}
+                        # Old format: {'mute': 'path/to/file', ...}
+                        
+                        # Check 'mute' key
+                        mute_val = saved_sounds.get('mute')
+                        if isinstance(mute_val, str) or mute_val is None:
+                            # Old format detected, migrate
+                            self.sound_config['mute']['file'] = mute_val
+                        elif isinstance(mute_val, dict):
+                            self.sound_config['mute'].update(mute_val)
+                            
+                        # Check 'unmute' key
+                        unmute_val = saved_sounds.get('unmute')
+                        if isinstance(unmute_val, str) or unmute_val is None:
+                            # Old format detected, migrate
+                            self.sound_config['unmute']['file'] = unmute_val
+                        elif isinstance(unmute_val, dict):
+                            self.sound_config['unmute'].update(unmute_val)
                     
                     saved_hotkey = data.get('hotkey')
                     if saved_hotkey:
@@ -86,6 +107,7 @@ class ConfigManager:
                     'device_id': self.device_id,
                     'sync_ids': self.sync_ids,
                     'beep_enabled': self.beep_enabled,
+                    'audio_mode': self.audio_mode,
                     'beep_config': self.beep_config,
                     'sound_config': self.sound_config,
                     'hotkey': self.hotkey_config,

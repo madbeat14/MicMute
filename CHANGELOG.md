@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.12.0] - 2025-11-29
+### Features
+- **Audio Mode Selection**: Added option to choose between "Beeps" (default) and "Custom Sounds" for audio feedback.
+- **Custom Sound Volume**: Added volume controls (0-200%) for custom mute and unmute sounds, allowing for software amplification.
+- **Default Device Icon**: Replaced the text-based star indicator with a standard checkmark icon for the default device in the device list.
+
+### Fixes
+- **Volume Application**: Fixed issue where volume changes for custom sounds were not applied instantly to hotkey actions.
+
 ## [2.11.0] - 2025-11-29
 ### Features
 - **Hybrid Asset Management**: Added support for importing custom sound files (`.wav`, `.mp3`). Imported sounds are copied to a local `micmute_sounds/` directory for portability.

@@ -1,7 +1,7 @@
 import gc
 from PySide6.QtGui import QColor, QAction
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, 
-                             QTableWidgetItem, QHeaderView, QMessageBox, QCheckBox, QMenu)
+                             QTableWidgetItem, QHeaderView, QMessageBox, QCheckBox, QMenu, QStyle)
 from PySide6.QtCore import Qt
 from pycaw.pycaw import AudioUtilities
 
@@ -138,9 +138,8 @@ class DeviceSelectionWidget(QWidget):
                 # Col 0: Default Indicator
                 def_item = QTableWidgetItem()
                 if is_master:
-                    # Star for default
-                    def_item.setText("★")
-                    def_item.setForeground(QColor("gold"))
+                    # Checkmark icon for default
+                    def_item.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
                     def_item.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(row, 0, def_item)
                 
