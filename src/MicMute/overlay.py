@@ -275,12 +275,17 @@ class StatusOverlay(QWidget):
             config (dict): Configuration dictionary.
         """
         self.current_config = config.copy()
-        if not config.get('enabled', False):
+        
+        # Soft Dependency Logic:
+        # We always process the config, but visibility and meter state depend on 'enabled'.
+        
+        is_enabled = config.get('enabled', False)
+        self.show_vu = config.get('show_vu', False)
+        
+        if not is_enabled:
             self.hide()
             self.stop_meter()
-            return
-            
-        self.show_vu = config.get('show_vu', False)
+            # We still update internal state/position so it's ready when enabled
         
         # Update Target Device
         self.set_target_device(config.get('device_id'))
@@ -288,6 +293,7 @@ class StatusOverlay(QWidget):
         opacity = config.get('opacity', 80) / 100.0
         self.setWindowOpacity(opacity)
         
+        # LED Visibility depends on both Overlay Enabled AND Show VU
         self.led_dot.setVisible(self.show_vu)
         
         # Scaling
@@ -327,9 +333,13 @@ class StatusOverlay(QWidget):
         else:
             self.reposition_predefined()
         
-        self.show()
-        # Refresh state
-        self.update_status(self.is_muted)
+        if is_enabled:
+            self.show()
+            # Refresh state (will start meter if needed)
+            self.update_status(self.is_muted)
+        else:
+            # Ensure meter is stopped if disabled
+            self.stop_meter()
 
     def set_target_device(self, device_id):
         """
@@ -393,7 +403,14 @@ class StatusOverlay(QWidget):
         self.icon_label.setPixmap(pixmap)
         
         # Manage Meter
-        if is_muted or not self.isVisible() or not self.show_vu:
+        # We only run the meter if:
+        # 1. Not muted
+        # 2. Overlay is visible (enabled)
+        # 3. VU meter is enabled
+        
+        should_run_meter = (not is_muted) and self.isVisible() and self.show_vu
+        
+        if not should_run_meter:
             self.stop_meter()
             self.set_active(False)
         else:

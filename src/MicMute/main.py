@@ -12,18 +12,6 @@ warnings.simplefilter("ignore", UserWarning)
 from .core import signals, audio
 from .config import CONFIG_FILE
 from .utils import is_system_light_theme, get_idle_duration, set_default_device, set_high_priority
-from pycaw.pycaw import AudioUtilities
-from .gui import ThemeListener, SettingsDialog
-from .overlay import MetroOSD, StatusOverlay
-from .input_manager import InputManager
-
-# --- CONFIGURATION ---
-VERSION = "2.9.1"
-
-# Paths to SVG icons
-if getattr(sys, 'frozen', False):
-    # Running as compiled EXE
-    BASE_DIR = sys._MEIPASS
     ASSETS_DIR = os.path.join(BASE_DIR, "MicMute", "assets")
 else:
     # Running from source
@@ -171,6 +159,11 @@ def main():
             """Applies configuration changes to OSD and Overlay."""
             osd.set_config(audio.osd_config)
             overlay.set_config(audio.persistent_overlay)
+            
+            # Sync Tray Menu Checkboxes
+            action_sound.setChecked(audio.beep_enabled)
+            action_osd.setChecked(audio.osd_config.get('enabled', False))
+            action_overlay.setChecked(audio.persistent_overlay.get('enabled', False))
         
         dialog.settings_applied.connect(apply_updates)
         
@@ -185,14 +178,26 @@ def main():
         dialog.finished.connect(on_settings_finished)
         dialog.show()
 
+    # Toggle Handlers
     def toggle_beep_setting(checked):
-        """
-        Toggles the beep sound setting.
-        
-        Args:
-            checked (bool): New state of the beep setting.
-        """
         audio.set_beep_enabled(checked)
+
+    def toggle_osd_setting(checked):
+        # Update config and save
+        new_config = audio.osd_config.copy()
+        new_config['enabled'] = checked
+        audio.update_osd_config(new_config)
+        # Force OSD hide if disabled
+        if not checked:
+            osd.hide()
+
+    def toggle_overlay_setting(checked):
+        # Update config and save
+        new_config = audio.persistent_overlay.copy()
+        new_config['enabled'] = checked
+        audio.update_persistent_overlay(new_config)
+        # Overlay handles its own visibility in set_config
+        overlay.set_config(new_config)
 
     menu = QMenu()
     
@@ -203,13 +208,29 @@ def main():
     
     menu.addSeparator()
     
-    # Beep Toggle
-    action_beep = QAction("Play Beep Sounds")
-    action_beep.setCheckable(True)
-    action_beep.setChecked(audio.beep_enabled)
-    action_beep.triggered.connect(toggle_beep_setting)
-    menu.addAction(action_beep)
+    # Sound Toggle
+    action_sound = QAction("Play Sound on Toggle")
+    action_sound.setCheckable(True)
+    action_sound.setChecked(audio.beep_enabled)
+    action_sound.triggered.connect(toggle_beep_setting)
+    menu.addAction(action_sound)
     
+    # OSD Toggle
+    action_osd = QAction("Enable OSD Notification")
+    action_osd.setCheckable(True)
+    action_osd.setChecked(audio.osd_config.get('enabled', False))
+    action_osd.triggered.connect(toggle_osd_setting)
+    menu.addAction(action_osd)
+    
+    # Overlay Toggle
+    action_overlay = QAction("Show Persistent Overlay")
+    action_overlay.setCheckable(True)
+    action_overlay.setChecked(audio.persistent_overlay.get('enabled', False))
+    action_overlay.triggered.connect(toggle_overlay_setting)
+    menu.addAction(action_overlay)
+    
+    menu.addSeparator()
+
     # Settings
     action_settings = QAction("Settings")
     action_settings.triggered.connect(show_settings_dialog)
@@ -269,6 +290,31 @@ def main():
             tray.showMessage("Device Changed", "Switched to new default microphone.", QSystemTrayIcon.Information, 2000)
             
     signals.device_changed.connect(on_device_changed)
+
+    def on_setting_changed(key, value):
+        """
+        Handles setting changes from other parts of the app (e.g. Settings Dialog).
+        Updates tray menu checkmarks to match.
+        """
+        # Block signals to prevent feedback loop? 
+        # Actually, QAction.setChecked emits triggered? No, usually toggled.
+        # But our triggered handlers call audio.set_*, which emits setting_changed.
+        # So we MUST block signals on the actions while setting them.
+        
+        if key == 'beep_enabled':
+            action_sound.blockSignals(True)
+            action_sound.setChecked(value)
+            action_sound.blockSignals(False)
+        elif key == 'osd':
+            action_osd.blockSignals(True)
+            action_osd.setChecked(value.get('enabled', False))
+            action_osd.blockSignals(False)
+        elif key == 'persistent_overlay':
+            action_overlay.blockSignals(True)
+            action_overlay.setChecked(value.get('enabled', False))
+            action_overlay.blockSignals(False)
+
+    signals.setting_changed.connect(on_setting_changed)
 
     # AFK Timer (Dynamic Throttling)
     afk_timer = QTimer()

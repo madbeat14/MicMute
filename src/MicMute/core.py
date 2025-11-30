@@ -25,6 +25,8 @@ class MuteSignals(QObject):
     key_recorded = Signal(int)
     # Signal when default device changes
     device_changed = Signal(str)
+    # Signal when a setting changes (key, value)
+    setting_changed = Signal(str, object)
     # Signal to exit the application
     exit_app = Signal()
 
@@ -146,6 +148,7 @@ class AudioController:
         """
         self.beep_enabled = enabled
         self.save_config()
+        signals.setting_changed.emit('beep_enabled', enabled)
 
     def update_beep_config(self, new_config):
         """
@@ -156,6 +159,7 @@ class AudioController:
         """
         self.beep_config = new_config
         self.save_config()
+        signals.setting_changed.emit('beep_config', new_config)
 
     def update_hotkey_config(self, new_config):
         """
@@ -166,6 +170,7 @@ class AudioController:
         """
         self.hotkey_config = new_config
         self.save_config()
+        signals.setting_changed.emit('hotkey', new_config)
 
     def update_afk_config(self, new_config):
         """
@@ -176,6 +181,7 @@ class AudioController:
         """
         self.afk_config = new_config
         self.save_config()
+        signals.setting_changed.emit('afk', new_config)
 
     def update_osd_config(self, new_config):
         """
@@ -186,6 +192,7 @@ class AudioController:
         """
         self.osd_config = new_config
         self.save_config()
+        signals.setting_changed.emit('osd', new_config)
         
     def update_persistent_overlay(self, new_config):
         """
@@ -196,6 +203,7 @@ class AudioController:
         """
         self.persistent_overlay = new_config
         self.save_config()
+        signals.setting_changed.emit('persistent_overlay', new_config)
         
     def update_sync_ids(self, ids):
         """
@@ -206,6 +214,7 @@ class AudioController:
         """
         self.sync_ids = ids
         self.save_config()
+        signals.setting_changed.emit('sync_ids', ids)
 
     def find_device(self):
         """
@@ -340,6 +349,7 @@ class AudioController:
         """
         self.sound_config = new_config
         self.save_config()
+        signals.setting_changed.emit('sound_config', new_config)
 
     def play_sound(self, sound_type):
         """

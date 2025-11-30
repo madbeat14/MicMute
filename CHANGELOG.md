@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.10.0] - 2025-11-29
+### Features
+- **Instant Apply Settings**: Removed "Save" button. All settings changes now apply immediately for a more responsive experience.
+- **Bi-Directional Sync**: Settings UI and System Tray menu are now perfectly synchronized. Toggling an option in one updates the other instantly.
+- **Soft Dependency**: The "Show Voice Activity Meter" setting is now preserved even when the Persistent Overlay is disabled.
+- **Resource Optimization**: The audio meter thread is now automatically stopped when the overlay is hidden, reducing CPU usage.
+
+### Changed
+- **Tray Menu**: Renamed "Play Beep Sounds" to "Play Sound on Toggle" and grouped overlay options for better usability.
+- **Settings UI**: Refactored to use centralized signals for configuration updates.
+
 ## [2.9.1] - 2025-11-29
 ### Added
 - **Sound Persistence**: Custom sound files are now automatically copied to a local `sounds/` directory on save, ensuring portability and persistence even if the original file is deleted.

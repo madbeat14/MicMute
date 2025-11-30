@@ -258,6 +258,27 @@ class AfkSettingsWidget(QWidget):
         # Enable/Disable spinbox based on checkbox
         self.timeout_spin.setEnabled(self.enabled_cb.isChecked())
         self.enabled_cb.toggled.connect(self.timeout_spin.setEnabled)
+        
+        # Instant Apply
+        self.enabled_cb.toggled.connect(self.apply_settings)
+        self.timeout_spin.valueChanged.connect(self.apply_settings)
+        
+        # Sync
+        signals.setting_changed.connect(self.on_setting_changed)
+
+    def apply_settings(self):
+        new_config = {
+            'enabled': self.enabled_cb.isChecked(),
+            'timeout': self.timeout_spin.value()
+        }
+        self.audio.update_afk_config(new_config)
+
+    def on_setting_changed(self, key, value):
+        if key == 'afk':
+            self.blockSignals(True)
+            self.enabled_cb.setChecked(value.get('enabled', False))
+            self.timeout_spin.setValue(value.get('timeout', 60))
+            self.blockSignals(False)
 
     def get_config(self):
         """
@@ -329,6 +350,42 @@ class OsdSettingsWidget(QWidget):
         layout.addRow(self.enabled_cb)
         layout.addRow("Size:", size_layout)
         layout.addRow("Position:", self.pos_combo)
+        
+        # Instant Apply
+        self.enabled_cb.toggled.connect(self.apply_settings)
+        self.px_spin.valueChanged.connect(self.apply_settings)
+        self.pos_combo.currentTextChanged.connect(self.apply_settings)
+        
+        # Sync
+        signals.setting_changed.connect(self.on_setting_changed)
+
+    def apply_settings(self):
+        pos_map = {
+            "Top": "Top-Center",
+            "Center": "Center",
+            "Bottom": "Bottom-Center"
+        }
+        new_config = {
+            'enabled': self.enabled_cb.isChecked(),
+            'size': self.px_spin.value(),
+            'duration': 1500,
+            'position': pos_map.get(self.pos_combo.currentText(), "Bottom-Center")
+        }
+        self.audio.update_osd_config(new_config)
+
+    def on_setting_changed(self, key, value):
+        if key == 'osd':
+            self.blockSignals(True)
+            self.enabled_cb.setChecked(value.get('enabled', False))
+            self.px_spin.setValue(value.get('size', 150))
+            
+            # Map position back to combo
+            current_pos = value.get('position', 'Bottom-Center')
+            if "Top" in current_pos: self.pos_combo.setCurrentText("Top")
+            elif "Bottom" in current_pos: self.pos_combo.setCurrentText("Bottom")
+            else: self.pos_combo.setCurrentText("Center")
+            
+            self.blockSignals(False)
         
     def get_config(self):
         """
@@ -421,6 +478,41 @@ class OverlaySettingsWidget(QWidget):
         layout.addRow("Position:", self.pos_mode_combo)
         layout.addRow("Size (Height):", size_layout)
         layout.addRow("Opacity:", self.opacity_slider)
+        
+        # Instant Apply
+        self.enabled_cb.toggled.connect(self.apply_settings)
+        self.vu_cb.toggled.connect(self.apply_settings)
+        self.locked_cb.toggled.connect(self.apply_settings)
+        self.pos_mode_combo.currentTextChanged.connect(self.apply_settings)
+        self.px_spin.valueChanged.connect(self.apply_settings)
+        self.opacity_slider.valueChanged.connect(self.apply_settings)
+        
+        # Sync
+        signals.setting_changed.connect(self.on_setting_changed)
+
+    def apply_settings(self):
+        new_config = {
+            'enabled': self.enabled_cb.isChecked(),
+            'show_vu': self.vu_cb.isChecked(),
+            'locked': self.locked_cb.isChecked(),
+            'position_mode': self.pos_mode_combo.currentText(),
+            'scale': self.scale_slider.value(),
+            'opacity': self.opacity_slider.value(),
+            'x': self.audio.persistent_overlay.get('x', 100),
+            'y': self.audio.persistent_overlay.get('y', 100)
+        }
+        self.audio.update_persistent_overlay(new_config)
+
+    def on_setting_changed(self, key, value):
+        if key == 'persistent_overlay':
+            self.blockSignals(True)
+            self.enabled_cb.setChecked(value.get('enabled', False))
+            self.vu_cb.setChecked(value.get('show_vu', False))
+            self.locked_cb.setChecked(value.get('locked', False))
+            self.pos_mode_combo.setCurrentText(value.get('position_mode', 'Custom'))
+            self.scale_slider.setValue(value.get('scale', 100))
+            self.opacity_slider.setValue(value.get('opacity', 80))
+            self.blockSignals(False)
 
     def get_config(self):
         """
@@ -503,50 +595,13 @@ class SettingsDialog(QDialog):
         
         # Buttons
         btn_layout = QHBoxLayout()
-        self.btn_save = QPushButton("Save")
-        self.btn_save.clicked.connect(self.apply_settings)
         self.btn_close = QPushButton("Close")
-        self.btn_close.clicked.connect(self.reject)
+        self.btn_close.clicked.connect(self.accept)
         
         btn_layout.addStretch()
-        btn_layout.addWidget(self.btn_save)
         btn_layout.addWidget(self.btn_close)
         layout.addLayout(btn_layout)
 
-    def apply_settings(self):
-        """
-        Saves all settings without closing the dialog.
-        """
-        # 1. Sync IDs
-        new_sync_ids = self.device_widget.get_sync_ids()
-        self.audio.update_sync_ids(new_sync_ids)
-        
-        # 2. Beep/Sound
-        beep_sound_config = self.beep_widget.get_config()
-        self.audio.update_beep_config(beep_sound_config['beep'])
-        self.audio.update_sound_config(beep_sound_config['sound'])
-        
-        # 3. Hotkeys
-        new_hotkey_config = self.hotkey_widget.get_config()
-        self.audio.update_hotkey_config(new_hotkey_config)
-        # Update hook immediately
-        if self.hook_thread.hook:
-            self.hook_thread.hook.update_config(new_hotkey_config)
-            
-        # 4. AFK
-        new_afk_config = self.afk_widget.get_config()
-        self.audio.update_afk_config(new_afk_config)
-        
-        # 5. OSD
-        new_osd_config = self.osd_widget.get_config()
-        self.audio.update_osd_config(new_osd_config)
-        
-        # 6. Overlay
-        new_overlay_config = self.overlay_widget.get_config()
-        self.audio.update_persistent_overlay(new_overlay_config)
-        
-        self.settings_applied.emit()
-    
     def closeEvent(self, event):
         """
         Handles the close event to clean up resources.
