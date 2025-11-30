@@ -12,6 +12,18 @@ warnings.simplefilter("ignore", UserWarning)
 from .core import signals, audio
 from .config import CONFIG_FILE
 from .utils import is_system_light_theme, get_idle_duration, set_default_device, set_high_priority
+from pycaw.pycaw import AudioUtilities
+from .gui import ThemeListener, SettingsDialog
+from .overlay import MetroOSD, StatusOverlay
+from .input_manager import InputManager
+
+# --- CONFIGURATION ---
+VERSION = "2.10.0"
+
+# Paths to SVG icons
+if getattr(sys, 'frozen', False):
+    # Running as compiled EXE
+    BASE_DIR = sys._MEIPASS
     ASSETS_DIR = os.path.join(BASE_DIR, "MicMute", "assets")
 else:
     # Running from source
