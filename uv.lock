@@ -1860,7 +1860,7 @@ wheels = [
 
 [[package]]
 name = "micmute"
-version = "1.7.0"
+version = "2.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "pycaw" },

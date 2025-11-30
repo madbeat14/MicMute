@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.13.1] - 2025-11-29
+### Maintenance
+- **Environment**: Pinned Python version to 3.14 using `uv` and updated dependencies.
+
 ## [2.13.0] - 2025-11-29
 ### Features
 - **Tray Menu Refactor**: Reorganized the system tray menu for better usability. Added "Start on Boot", "Help", and "About" options.
