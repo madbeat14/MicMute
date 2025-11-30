@@ -337,6 +337,24 @@ class OsdSettingsWidget(QWidget):
         size_layout.addWidget(self.scale_slider)
         size_layout.addWidget(self.px_spin)
         
+        # Opacity Control
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(10, 100)
+        self.opacity_slider.setValue(self.audio.osd_config.get('opacity', 80))
+        
+        self.opacity_spin = QSpinBox()
+        self.opacity_spin.setRange(10, 100)
+        self.opacity_spin.setSuffix("%")
+        self.opacity_spin.setValue(self.audio.osd_config.get('opacity', 80))
+        
+        # Sync Opacity
+        self.opacity_slider.valueChanged.connect(self.opacity_spin.setValue)
+        self.opacity_spin.valueChanged.connect(self.opacity_slider.setValue)
+        
+        opacity_layout = QHBoxLayout()
+        opacity_layout.addWidget(self.opacity_slider)
+        opacity_layout.addWidget(self.opacity_spin)
+        
         # Position Control
         self.pos_combo = QComboBox()
         self.pos_combo.addItems(["Top", "Center", "Bottom"])
@@ -349,12 +367,15 @@ class OsdSettingsWidget(QWidget):
         
         layout.addRow(self.enabled_cb)
         layout.addRow("Size:", size_layout)
+        layout.addRow("Opacity:", opacity_layout)
         layout.addRow("Position:", self.pos_combo)
         
         # Instant Apply
         self.enabled_cb.toggled.connect(self.apply_settings)
         self.px_spin.valueChanged.connect(self.apply_settings)
         self.pos_combo.currentTextChanged.connect(self.apply_settings)
+        self.opacity_slider.valueChanged.connect(self.apply_settings)
+        self.opacity_spin.valueChanged.connect(self.apply_settings)
         
         # Sync
         signals.setting_changed.connect(self.on_setting_changed)
@@ -369,7 +390,8 @@ class OsdSettingsWidget(QWidget):
             'enabled': self.enabled_cb.isChecked(),
             'size': self.px_spin.value(),
             'duration': 1500,
-            'position': pos_map.get(self.pos_combo.currentText(), "Bottom-Center")
+            'position': pos_map.get(self.pos_combo.currentText(), "Bottom-Center"),
+            'opacity': self.opacity_slider.value()
         }
         self.audio.update_osd_config(new_config)
 
@@ -378,6 +400,8 @@ class OsdSettingsWidget(QWidget):
             self.blockSignals(True)
             self.enabled_cb.setChecked(value.get('enabled', False))
             self.px_spin.setValue(value.get('size', 150))
+            self.opacity_slider.setValue(value.get('opacity', 80))
+            self.opacity_spin.setValue(value.get('opacity', 80))
             
             # Map position back to combo
             current_pos = value.get('position', 'Bottom-Center')
@@ -408,7 +432,8 @@ class OsdSettingsWidget(QWidget):
             'enabled': self.enabled_cb.isChecked(),
             'size': self.px_spin.value(),
             'duration': 1500, # Default
-            'position': pos_map.get(self.pos_combo.currentText(), "Bottom-Center")
+            'position': pos_map.get(self.pos_combo.currentText(), "Bottom-Center"),
+            'opacity': self.opacity_slider.value()
         }
 
 class OverlaySettingsWidget(QWidget):
@@ -439,6 +464,19 @@ class OverlaySettingsWidget(QWidget):
         self.opacity_slider = QSlider(Qt.Horizontal)
         self.opacity_slider.setRange(10, 100)
         self.opacity_slider.setValue(self.audio.persistent_overlay.get('opacity', 80))
+        
+        self.opacity_spin = QSpinBox()
+        self.opacity_spin.setRange(10, 100)
+        self.opacity_spin.setSuffix("%")
+        self.opacity_spin.setValue(self.audio.persistent_overlay.get('opacity', 80))
+        
+        # Sync Opacity
+        self.opacity_slider.valueChanged.connect(self.opacity_spin.setValue)
+        self.opacity_spin.valueChanged.connect(self.opacity_slider.setValue)
+        
+        opacity_layout = QHBoxLayout()
+        opacity_layout.addWidget(self.opacity_slider)
+        opacity_layout.addWidget(self.opacity_spin)
         
         # Size Control (Slider + SpinBox)
         self.scale_slider = QSlider(Qt.Horizontal)
@@ -477,7 +515,7 @@ class OverlaySettingsWidget(QWidget):
         layout.addRow(self.locked_cb)
         layout.addRow("Position:", self.pos_mode_combo)
         layout.addRow("Size (Height):", size_layout)
-        layout.addRow("Opacity:", self.opacity_slider)
+        layout.addRow("Opacity:", opacity_layout)
         
         # Instant Apply
         self.enabled_cb.toggled.connect(self.apply_settings)
@@ -486,6 +524,7 @@ class OverlaySettingsWidget(QWidget):
         self.pos_mode_combo.currentTextChanged.connect(self.apply_settings)
         self.px_spin.valueChanged.connect(self.apply_settings)
         self.opacity_slider.valueChanged.connect(self.apply_settings)
+        self.opacity_spin.valueChanged.connect(self.apply_settings)
         
         # Sync
         signals.setting_changed.connect(self.on_setting_changed)
@@ -512,6 +551,7 @@ class OverlaySettingsWidget(QWidget):
             self.pos_mode_combo.setCurrentText(value.get('position_mode', 'Custom'))
             self.scale_slider.setValue(value.get('scale', 100))
             self.opacity_slider.setValue(value.get('opacity', 80))
+            self.opacity_spin.setValue(value.get('opacity', 80))
             self.blockSignals(False)
 
     def get_config(self):

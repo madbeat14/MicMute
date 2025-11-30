@@ -68,6 +68,7 @@ class MetroOSD(QWidget):
         
         self.duration = 1500
         self.position = "Bottom-Center"
+        self.target_opacity = 0.8
         
     def set_config(self, config):
         """
@@ -79,6 +80,7 @@ class MetroOSD(QWidget):
         self.duration = config.get('duration', 1500)
         self.position = config.get('position', 'Bottom-Center')
         self.osd_size = config.get('size', 150)
+        self.target_opacity = config.get('opacity', 80) / 100.0
         self.resize(self.osd_size, self.osd_size)
         
     def show_osd(self, is_muted):
@@ -104,10 +106,10 @@ class MetroOSD(QWidget):
             
             # Fade In
             self.opacity_anim.setStartValue(0.0)
-            self.opacity_anim.setEndValue(1.0)
+            self.opacity_anim.setEndValue(self.target_opacity)
             self.opacity_anim.start()
         else:
-            self.setWindowOpacity(1.0)
+            self.setWindowOpacity(self.target_opacity)
             # Ensure position is correct if config changed
             self.reposition()
             
@@ -117,7 +119,7 @@ class MetroOSD(QWidget):
         """
         Starts the fade-out animation.
         """
-        self.fade_out_anim.setStartValue(1.0)
+        self.fade_out_anim.setStartValue(self.target_opacity)
         self.fade_out_anim.setEndValue(0.0)
         self.fade_out_anim.start()
         

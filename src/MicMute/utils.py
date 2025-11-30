@@ -1,7 +1,51 @@
+import sys
+import os
 import ctypes
 import winreg
 from ctypes import wintypes, POINTER, c_void_p, c_int, c_long, c_longlong, Structure, sizeof
 from PySide6.QtCore import QTimer, QObject, Signal
+
+# --- PATH HELPERS ---
+def get_internal_asset(filename):
+    """
+    Resolves the path to an internal bundled asset.
+    Handles both frozen (PyInstaller) and source modes.
+    
+    Args:
+        filename (str): Name of the asset file (e.g., 'mute.wav').
+        
+    Returns:
+        str: Absolute path to the asset.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as compiled EXE
+        base_dir = sys._MEIPASS
+        assets_dir = os.path.join(base_dir, "MicMute", "assets")
+    else:
+        # Running from source
+        base_dir = os.path.dirname(__file__)
+        assets_dir = os.path.join(base_dir, "assets")
+    
+    return os.path.join(assets_dir, filename)
+
+def get_external_sound_dir():
+    """
+    Returns the path to the external user sounds directory.
+    Creates the directory if it does not exist.
+    
+    Returns:
+        str: Absolute path to 'micmute_sounds' directory.
+    """
+    # Next to the executable or script
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Go up two levels from src/MicMute/utils.py to root
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        
+    sound_dir = os.path.join(base_dir, "micmute_sounds")
+    os.makedirs(sound_dir, exist_ok=True)
+    return sound_dir
 
 # --- WIN32 CONSTANTS & TYPES ---
 WH_KEYBOARD_LL = 13

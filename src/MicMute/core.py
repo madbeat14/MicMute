@@ -354,6 +354,7 @@ class AudioController:
     def play_sound(self, sound_type):
         """
         Plays custom sound if set, else fallback to beep.
+        Handles hybrid asset management (Internal vs External).
         
         Args:
             sound_type (str): 'mute' or 'unmute'.
@@ -368,23 +369,49 @@ class AudioController:
                     Beep(cfg['freq'], cfg['duration'])
             except Exception: pass
         
-        custom_path = self.sound_config.get(sound_type)
-        if custom_path and os.path.exists(custom_path):
+        # Resolve Path
+        from .utils import get_internal_asset, get_external_sound_dir
+        
+        filename = self.sound_config.get(sound_type)
+        path = None
+        
+        if not filename or filename == "DEFAULT":
+            path = get_internal_asset(f"{sound_type}.wav")
+        else:
+            # Custom file
+            path = os.path.join(get_external_sound_dir(), filename)
+            
+        # Play
+        if path and os.path.exists(path):
             try:
                 if self.player is None:
                     self.player = QSoundEffect()
                     
-                self.player.setSource(QUrl.fromLocalFile(custom_path))
+                self.player.setSource(QUrl.fromLocalFile(path))
                 # Default volume
                 self.player.setVolume(0.5)
                 self.player.play()
                 return
             except Exception as e:
-                print(f"Error playing custom sound: {e}")
+                print(f"Error playing sound '{path}': {e}")
                 # Fallback to beep on error
                 threading.Thread(target=run_beep, daemon=True).start()
         else:
-            # No custom sound or file missing -> Beep
+            # File missing or invalid -> Fallback to internal if custom was requested
+            if filename and filename != "DEFAULT":
+                print(f"Custom sound '{filename}' not found. Falling back to internal.")
+                # Try internal
+                internal_path = get_internal_asset(f"{sound_type}.wav")
+                if os.path.exists(internal_path):
+                    try:
+                        if self.player is None: self.player = QSoundEffect()
+                        self.player.setSource(QUrl.fromLocalFile(internal_path))
+                        self.player.setVolume(0.5)
+                        self.player.play()
+                        return
+                    except: pass
+            
+            # Final fallback -> Beep
             threading.Thread(target=run_beep, daemon=True).start()
 
     def get_mute_state(self):

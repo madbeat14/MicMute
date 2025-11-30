@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.11.0] - 2025-11-29
+### Features
+- **Hybrid Asset Management**: Added support for importing custom sound files (`.wav`, `.mp3`). Imported sounds are copied to a local `micmute_sounds/` directory for portability.
+- **Opacity Controls**: Added opacity sliders and spinboxes (10-100%) to both the On-Screen Display (OSD) and Persistent Overlay settings.
+- **Improved Settings UI**: Replaced text inputs with dropdowns for sound selection and added "Import" and "Preview" buttons.
+
 ## [2.10.0] - 2025-11-29
 ### Features
 - **Instant Apply Settings**: Removed "Save" button. All settings changes now apply immediately for a more responsive experience.
