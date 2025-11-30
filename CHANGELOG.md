@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.13.0] - 2025-11-29
+### Features
+- **Tray Menu Refactor**: Reorganized the system tray menu for better usability. Added "Start on Boot", "Help", and "About" options.
+- **High Priority Startup**: Replaced Registry-based startup with Windows Task Scheduler. "Start on Boot" now creates a task with "Highest Privileges" and Real-time priority (Priority 0).
+- **UAC Elevation**: Added automatic UAC elevation request if creating the startup task fails due to permissions.
+- **Silent Startup**: Uses `pythonw.exe` when running from source to prevent console window on startup.
+
+### Fixes
+- **Tooltip Regression**: Fixed an issue where the tray icon tooltip did not display the mute status on application start.
+- **Source Mode Startup**: Fixed "Start on Boot" not passing the script path correctly when running from source.
+
 ## [2.12.0] - 2025-11-29
 ### Features
 - **Audio Mode Selection**: Added option to choose between "Beeps" (default) and "Custom Sounds" for audio feedback.

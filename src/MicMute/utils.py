@@ -1,7 +1,8 @@
 import sys
 import os
 import ctypes
-import winreg
+import subprocess
+import tempfile
 from ctypes import wintypes, POINTER, c_void_p, c_int, c_long, c_longlong, Structure, sizeof
 from PySide6.QtCore import QTimer, QObject, Signal
 
@@ -47,7 +48,199 @@ def get_external_sound_dir():
     os.makedirs(sound_dir, exist_ok=True)
     return sound_dir
 
-# --- WIN32 CONSTANTS & TYPES ---
+
+
+# --- STARTUP HELPERS (Task Scheduler) ---
+
+TASK_XML_TEMPLATE = r"""<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Author>{AUTHOR}</Author>
+    <Description>Start MicMute at startup with High Priority</Description>
+    <URI>\MicMuteStartup</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
+    <AllowHardTerminate>false</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <Priority>0</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>{EXE_PATH}</Command>
+      <Arguments>{ARGUMENTS}</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"""
+
+def get_run_on_startup():
+    """
+    Checks if the application is set to run on startup via Windows Task Scheduler.
+    
+    Returns:
+        bool: True if the task exists, False otherwise.
+    """
+    try:
+        # Check if task exists
+        result = subprocess.run(
+            ["schtasks", "/Query", "/TN", "MicMuteStartup"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return result.returncode == 0
+    except Exception as e:
+        print(f"Error checking startup status: {e}")
+        return False
+
+def set_run_on_startup(enable):
+    """
+    Enables or disables running the application on startup using Windows Task Scheduler.
+    
+    Args:
+        enable (bool): True to enable, False to disable.
+        
+    Raises:
+        Exception: If schtasks fails (e.g. Access Denied and User declined UAC).
+    """
+    task_name = "MicMuteStartup"
+    
+    if enable:
+        # Determine Executable Path and Arguments
+        if getattr(sys, 'frozen', False):
+            exe_path = sys.executable
+            arguments = ""
+        else:
+            # Use pythonw.exe for silent execution if available
+            exe_path = sys.executable
+            if exe_path.endswith("python.exe"):
+                pythonw = exe_path.replace("python.exe", "pythonw.exe")
+                if os.path.exists(pythonw):
+                    exe_path = pythonw
+            
+            # Pass the script path as an argument
+            script_path = os.path.abspath(sys.argv[0])
+            arguments = f'"{script_path}"'
+
+        author = os.getlogin()
+        
+        # Prepare XML
+        xml_content = TASK_XML_TEMPLATE.format(
+            AUTHOR=author,
+            EXE_PATH=exe_path,
+            ARGUMENTS=arguments
+        )
+        
+        # Write to temp file
+        fd, temp_path = tempfile.mkstemp(suffix=".xml")
+        os.close(fd)
+        
+        try:
+            with open(temp_path, 'w', encoding='utf-16') as f:
+                f.write(xml_content)
+                
+            # Create Task
+            # Try direct execution first
+            cmd = ["schtasks", "/Create", "/TN", task_name, "/XML", temp_path, "/F"]
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            
+            if result.returncode != 0:
+                # Check for Access Denied
+                err_msg = result.stderr.decode('cp1252', errors='ignore').strip()
+                if "Access is denied" in err_msg or "acceso denegado" in err_msg.lower() or result.returncode == 5:
+                    # Try with UAC via PowerShell
+                    # Start-Process schtasks -ArgumentList ... -Verb RunAs -Wait
+                    # We need to be careful with quoting the argument list for PowerShell
+                    
+                    # Arguments for schtasks: /Create /TN "MicMuteStartup" /XML "path" /F
+                    # PowerShell ArgumentList expects a string or array.
+                    # We'll construct a single string for ArgumentList
+                    
+                    schtasks_args = f'/Create /TN "{task_name}" /XML "{temp_path}" /F'
+                    
+                    ps_cmd = [
+                        "powershell", 
+                        "-Command", 
+                        f"Start-Process schtasks -ArgumentList '{schtasks_args}' -Verb RunAs -Wait"
+                    ]
+                    
+                    ps_result = subprocess.run(
+                        ps_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    
+                    if ps_result.returncode != 0:
+                         raise Exception(f"UAC Elevation failed or cancelled.")
+                    
+                    # Double check if task was created because Start-Process -Wait returns exit code of PowerShell, not schtasks
+                    if not get_run_on_startup():
+                        raise Exception("Task creation failed even after UAC prompt (User cancelled?).")
+                        
+                else:
+                    raise Exception(f"schtasks failed: {err_msg}")
+                
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
+    else:
+        # Delete Task
+        cmd = ["schtasks", "/Delete", "/TN", task_name, "/F"]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        
+        if result.returncode != 0:
+             # If failed, try elevated delete
+             err_msg = result.stderr.decode('cp1252', errors='ignore').strip()
+             if "Access is denied" in err_msg or "acceso denegado" in err_msg.lower() or result.returncode == 5:
+                 schtasks_args = f'/Delete /TN "{task_name}" /F'
+                 ps_cmd = [
+                    "powershell", 
+                    "-Command", 
+                    f"Start-Process schtasks -ArgumentList '{schtasks_args}' -Verb RunAs -Wait"
+                 ]
+                 subprocess.run(
+                    ps_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                 )
+
+
 WH_KEYBOARD_LL = 13
 WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101

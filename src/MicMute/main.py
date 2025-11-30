@@ -2,23 +2,23 @@ import sys
 import os
 import gc
 import warnings
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QDialog
-from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QDialog, QMessageBox
+from PySide6.QtGui import QIcon, QAction, QDesktopServices
+from PySide6.QtCore import QTimer, QUrl
 
 # Suppress warnings (e.g. pycaw COM errors)
 warnings.simplefilter("ignore", UserWarning)
 
 from .core import signals, audio
 from .config import CONFIG_FILE
-from .utils import is_system_light_theme, get_idle_duration, set_default_device, set_high_priority
+from .utils import is_system_light_theme, get_idle_duration, set_default_device, set_high_priority, get_run_on_startup, set_run_on_startup
 from pycaw.pycaw import AudioUtilities
 from .gui import ThemeListener, SettingsDialog
 from .overlay import MetroOSD, StatusOverlay
 from .input_manager import InputManager
 
 # --- CONFIGURATION ---
-VERSION = "2.12.0"
+VERSION = "2.13.0"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -82,7 +82,7 @@ def main():
         else: return icon_white_muted if muted else icon_white_unmuted
 
     tray.setIcon(get_current_icon(current_mute_state, is_light_theme))
-    tray.setToolTip(f"MicMute v{VERSION}")
+    tray.setToolTip(f"MicMute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
     
     # Listeners
     theme_listener = ThemeListener()
@@ -240,6 +240,17 @@ def main():
     action_overlay.setChecked(audio.persistent_overlay.get('enabled', False))
     action_overlay.triggered.connect(toggle_overlay_setting)
     menu.addAction(action_overlay)
+
+    # Start on Boot Toggle
+    action_startup = QAction("Start on Boot")
+    action_startup.setCheckable(True)
+    action_startup.setChecked(get_run_on_startup())
+    
+    def toggle_startup(checked):
+        set_run_on_startup(checked)
+        
+    action_startup.triggered.connect(toggle_startup)
+    menu.addAction(action_startup)
     
     menu.addSeparator()
 
@@ -247,6 +258,26 @@ def main():
     action_settings = QAction("Settings")
     action_settings.triggered.connect(show_settings_dialog)
     menu.addAction(action_settings)
+    
+    # Help
+    action_help = QAction("Help")
+    action_help.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/madbeat14/MicMute#readme")))
+    menu.addAction(action_help)
+    
+    # About
+    action_about = QAction("About")
+    
+    def show_about():
+        QMessageBox.about(
+            None,
+            "About MicMute",
+            f"<b>MicMute v{VERSION}</b><br><br>"
+            "Author: madbeat14<br>"
+            "A lightweight, non-intrusive microphone mute toggle application with native hooks and overlay."
+        )
+        
+    action_about.triggered.connect(show_about)
+    menu.addAction(action_about)
     
     menu.addSeparator()
     
