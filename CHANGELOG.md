@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.13.3] - 2025-11-30
+### Features
+- **Voice Meter Sensitivity**: Added a sensitivity slider (1-100%) to the Persistent Overlay settings. This allows users to adjust the volume threshold required to trigger the voice activity LED.
+
 ## [2.13.2] - 2025-11-30
 ### Fixes
 - **Visuals**: Fixed critical bugs in OSD and Persistent Overlay positioning logic.

@@ -643,6 +643,24 @@ class OverlaySettingsWidget(QWidget):
         opacity_layout.addWidget(self.opacity_slider)
         opacity_layout.addWidget(self.opacity_spin)
         
+        # Sensitivity Control
+        self.sens_slider = QSlider(Qt.Horizontal)
+        self.sens_slider.setRange(1, 100)
+        self.sens_slider.setValue(self.audio.persistent_overlay.get('sensitivity', 5))
+        
+        self.sens_spin = QSpinBox()
+        self.sens_spin.setRange(1, 100)
+        self.sens_spin.setSuffix("%")
+        self.sens_spin.setValue(self.audio.persistent_overlay.get('sensitivity', 5))
+        
+        # Sync Sensitivity
+        self.sens_slider.valueChanged.connect(self.sens_spin.setValue)
+        self.sens_spin.valueChanged.connect(self.sens_slider.setValue)
+        
+        sens_layout = QHBoxLayout()
+        sens_layout.addWidget(self.sens_slider)
+        sens_layout.addWidget(self.sens_spin)
+        
         # Size Control (Slider + SpinBox)
         self.scale_slider = QSlider(Qt.Horizontal)
         self.scale_slider.setRange(50, 200)
@@ -681,6 +699,7 @@ class OverlaySettingsWidget(QWidget):
         layout.addRow("Position:", self.pos_mode_combo)
         layout.addRow("Size (Height):", size_layout)
         layout.addRow("Opacity:", opacity_layout)
+        layout.addRow("Sensitivity:", sens_layout)
         
         # Instant Apply
         self.enabled_cb.toggled.connect(self.apply_settings)
@@ -690,6 +709,8 @@ class OverlaySettingsWidget(QWidget):
         self.px_spin.valueChanged.connect(self.apply_settings)
         self.opacity_slider.valueChanged.connect(self.apply_settings)
         self.opacity_spin.valueChanged.connect(self.apply_settings)
+        self.sens_slider.valueChanged.connect(self.apply_settings)
+        self.sens_spin.valueChanged.connect(self.apply_settings)
         
         # Sync
         signals.setting_changed.connect(self.on_setting_changed)
@@ -702,6 +723,7 @@ class OverlaySettingsWidget(QWidget):
             'position_mode': self.pos_mode_combo.currentText(),
             'scale': self.scale_slider.value(),
             'opacity': self.opacity_slider.value(),
+            'sensitivity': self.sens_slider.value(),
             'x': self.audio.persistent_overlay.get('x', 100),
             'y': self.audio.persistent_overlay.get('y', 100)
         }
@@ -717,6 +739,8 @@ class OverlaySettingsWidget(QWidget):
             self.scale_slider.setValue(value.get('scale', 100))
             self.opacity_slider.setValue(value.get('opacity', 80))
             self.opacity_spin.setValue(value.get('opacity', 80))
+            self.sens_slider.setValue(value.get('sensitivity', 5))
+            self.sens_spin.setValue(value.get('sensitivity', 5))
             self.blockSignals(False)
 
     def get_config(self):
@@ -733,6 +757,7 @@ class OverlaySettingsWidget(QWidget):
             'position_mode': self.pos_mode_combo.currentText(),
             'scale': self.scale_slider.value(),
             'opacity': self.opacity_slider.value(),
+            'sensitivity': self.sens_slider.value(),
             'x': self.audio.persistent_overlay.get('x', 100),
             'y': self.audio.persistent_overlay.get('y', 100)
         }
