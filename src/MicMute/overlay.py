@@ -101,7 +101,9 @@ class MetroOSD(QWidget):
         if not self.isVisible():
             self.setWindowOpacity(0.0)
             # Position before showing
-            self.reposition()
+            self.setWindowOpacity(0.0)
+            # Position before showing
+            self.apply_position()
             self.show()
             
             # Fade In
@@ -111,7 +113,8 @@ class MetroOSD(QWidget):
         else:
             self.setWindowOpacity(self.target_opacity)
             # Ensure position is correct if config changed
-            self.reposition()
+            # Ensure position is correct if config changed
+            self.apply_position()
             
         self.hide_timer.start(self.duration)
         
@@ -123,9 +126,10 @@ class MetroOSD(QWidget):
         self.fade_out_anim.setEndValue(0.0)
         self.fade_out_anim.start()
         
-    def reposition(self):
+    def apply_position(self):
         """
         Calculates and sets the OSD position based on configuration.
+        Uses availableGeometry() to respect taskbar.
         """
         # Get screen where cursor is, or primary
         cursor_pos = QCursor.pos()
@@ -133,7 +137,7 @@ class MetroOSD(QWidget):
         if not screen:
             screen = QApplication.primaryScreen()
             
-        geo = screen.geometry()
+        geo = screen.availableGeometry()
         w, h = self.width(), self.height()
         # Standard margin
         margin = 40
@@ -333,7 +337,7 @@ class StatusOverlay(QWidget):
             y = config.get('y', 100)
             self.move(x, y)
         else:
-            self.reposition_predefined()
+            self.apply_position()
         
         if is_enabled:
             self.show()
@@ -356,16 +360,17 @@ class StatusOverlay(QWidget):
             self.stop_meter()
             self.start_meter()
 
-    def reposition_predefined(self):
+    def apply_position(self):
         """
         Moves the overlay to a predefined position on the screen.
+        Uses availableGeometry() to respect taskbar.
         """
         cursor_pos = QCursor.pos()
         screen = QApplication.screenAt(cursor_pos)
         if not screen:
             screen = QApplication.primaryScreen()
             
-        geo = screen.geometry()
+        geo = screen.availableGeometry()
         w, h = self.width(), self.height()
         margin = 20
         

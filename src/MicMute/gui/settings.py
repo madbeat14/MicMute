@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from winsound import Beep
 
 from ..core import signals
+from ..utils import get_external_sound_dir
 from .devices import DeviceSelectionWidget
 from .hotkeys import HotkeySettingsWidget
 class BeepSettingsWidget(QWidget):
@@ -213,7 +214,7 @@ class BeepSettingsWidget(QWidget):
         Args:
             sound_type (str): 'mute' or 'unmute'.
         """
-        path, _ = QFileDialog.getOpenFileName(self, "Select Sound File", "", "Audio Files (*.wav *.mp3)")
+        path, _ = QFileDialog.getOpenFileName(self, "Select Sound File", get_external_sound_dir(), "Audio Files (*.wav *.mp3)")
         if path:
             self.pending_sounds[sound_type] = path
             basename = os.path.basename(path)
@@ -221,6 +222,9 @@ class BeepSettingsWidget(QWidget):
                 self.mute_path.setText(basename)
             else:
                 self.unmute_path.setText(basename)
+            
+            # Instant Apply
+            self.apply_settings()
 
     def preview_sound(self, sound_type):
         """
@@ -236,22 +240,24 @@ class BeepSettingsWidget(QWidget):
             cfg = self.audio.sound_config.get(sound_type, {})
             path = cfg.get('file') if isinstance(cfg, dict) else cfg
             
-        if path and os.path.exists(path):
-            # Use AudioController's player but set source manually
-            from PySide6.QtCore import QUrl
-            if self.audio.player is None:
-                from PySide6.QtMultimedia import QSoundEffect
-                self.audio.player = QSoundEffect()
-                
-            self.audio.player.setSource(QUrl.fromLocalFile(path))
-            # Get volume from slider
-            vol = self.mute_vol_slider.value() if sound_type == 'mute' else self.unmute_vol_slider.value()
-            self.audio.player.setVolume(vol / 100.0)
-            self.audio.player.play()
-        else:
-            # Fallback test beep
-            if sound_type == 'mute': self.test_mute()
-            else: self.test_unmute()
+        if path:
+            # If we have a pending path, we might want to play that specific file directly
+            # to verify it BEFORE it is saved/copied.
+            if os.path.exists(path):
+                from PySide6.QtCore import QUrl
+                if self.audio.player is None:
+                    from PySide6.QtMultimedia import QSoundEffect
+                    self.audio.player = QSoundEffect()
+                self.audio.player.setSource(QUrl.fromLocalFile(path))
+                vol = self.mute_vol_slider.value() if sound_type == 'mute' else self.unmute_vol_slider.value()
+                self.audio.player.setVolume(vol / 100.0)
+                self.audio.player.play()
+                return
+
+        # If no pending path, use the standard play_sound which handles fallbacks
+        # This ensures that if the config says "mute2.wav" but it's missing,
+        # the preview will trigger the fallback logic (and revert config).
+        self.audio.play_sound(sound_type)
 
     def test_mute(self):
         """
@@ -299,6 +305,18 @@ class BeepSettingsWidget(QWidget):
             self.unmute_count.setValue(value['unmute']['count'])
             self.blockSignals(False)
         elif key == 'sound_config':
+            self.blockSignals(True)
+            # Update Mute Path
+            mute_cfg = value.get('mute', {})
+            mute_file = mute_cfg.get('file') if isinstance(mute_cfg, dict) else mute_cfg
+            self.mute_path.setText(os.path.basename(mute_file) if mute_file else "")
+            
+            # Update Unmute Path
+            unmute_cfg = value.get('unmute', {})
+            unmute_file = unmute_cfg.get('file') if isinstance(unmute_cfg, dict) else unmute_cfg
+            self.unmute_path.setText(os.path.basename(unmute_file) if unmute_file else "")
+            self.blockSignals(False)
+        elif key == 'sound_config':
             # Update basenames and volumes
             self.blockSignals(True)
             
@@ -327,7 +345,7 @@ class BeepSettingsWidget(QWidget):
             dict: Configuration dictionary.
         """
         # Process pending copies
-        sounds_dir = os.path.join(os.getcwd(), "sounds")
+        sounds_dir = get_external_sound_dir()
         os.makedirs(sounds_dir, exist_ok=True)
         
         final_sound_config = self.audio.sound_config.copy()

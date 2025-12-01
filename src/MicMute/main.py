@@ -18,7 +18,7 @@ from .overlay import MetroOSD, StatusOverlay
 from .input_manager import InputManager
 
 # --- CONFIGURATION ---
-VERSION = "2.13.1"
+VERSION = "2.13.2"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -352,10 +352,14 @@ def main():
             action_osd.blockSignals(True)
             action_osd.setChecked(value.get('enabled', False))
             action_osd.blockSignals(False)
+            # Live Update OSD
+            osd.set_config(value)
         elif key == 'persistent_overlay':
             action_overlay.blockSignals(True)
             action_overlay.setChecked(value.get('enabled', False))
             action_overlay.blockSignals(False)
+            # Live Update Overlay
+            overlay.set_config(value)
 
     signals.setting_changed.connect(on_setting_changed)
 

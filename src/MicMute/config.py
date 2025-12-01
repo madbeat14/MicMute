@@ -19,8 +19,8 @@ class ConfigManager:
             'unmute': {'freq': 700, 'duration': 200, 'count': 1}
         }
         self.sound_config = {
-            'mute': {'file': None, 'volume': 50},
-            'unmute': {'file': None, 'volume': 50}
+            'mute': {'file': 'mute.wav', 'volume': 50},
+            'unmute': {'file': 'unmute.wav', 'volume': 50}
         }
         self.hotkey_config = {
             'mode': 'toggle',
@@ -65,17 +65,19 @@ class ConfigManager:
                         
                         # Check 'mute' key
                         mute_val = saved_sounds.get('mute')
-                        if isinstance(mute_val, str) or mute_val is None:
-                            # Old format detected, migrate
+                        if isinstance(mute_val, str):
                             self.sound_config['mute']['file'] = mute_val
+                        elif mute_val is None:
+                            self.sound_config['mute']['file'] = 'mute.wav'
                         elif isinstance(mute_val, dict):
                             self.sound_config['mute'].update(mute_val)
                             
                         # Check 'unmute' key
                         unmute_val = saved_sounds.get('unmute')
-                        if isinstance(unmute_val, str) or unmute_val is None:
-                            # Old format detected, migrate
+                        if isinstance(unmute_val, str):
                             self.sound_config['unmute']['file'] = unmute_val
+                        elif unmute_val is None:
+                            self.sound_config['unmute']['file'] = 'unmute.wav'
                         elif isinstance(unmute_val, dict):
                             self.sound_config['unmute'].update(unmute_val)
                     

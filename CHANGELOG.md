@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.2] - 2025-11-30
+### Fixes
+- **Visuals**: Fixed critical bugs in OSD and Persistent Overlay positioning logic.
+    - **Positioning**: Now correctly accounts for the Windows Taskbar using `availableGeometry()`.
+    - **Live Updates**: Sliders (Size, Opacity) and "Lock Position" checkbox now update the overlay immediately.
+    - **Locking**: "Lock Position" now correctly prevents dragging, and dragging (when unlocked) automatically switches to "Custom" mode.
+
 ## [2.13.1] - 2025-11-29
 ### Maintenance
 - **Environment**: Pinned Python version to 3.14 using `uv` and updated dependencies.

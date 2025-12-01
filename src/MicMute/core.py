@@ -60,6 +60,11 @@ class AudioController:
         self.enumerator = None
         
         self.config_manager.load_config()
+        
+        # Ensure sounds directory exists
+        from .utils import get_external_sound_dir
+        get_external_sound_dir()
+        
         self.start_device_watcher()
 
     # Property proxies for backward compatibility and ease of use
@@ -408,7 +413,48 @@ class AudioController:
             path = get_internal_asset(f"{sound_type}.wav")
         else:
             # Custom file
-            path = os.path.join(get_external_sound_dir(), filename)
+            # 1. Try external directory (User overrides)
+            external_path = os.path.join(get_external_sound_dir(), filename)
+            if os.path.exists(external_path):
+                path = external_path
+            else:
+                # 2. Fallback: Check internal assets if filename matches default names
+                # This handles the case where config points to "mute.wav" but it's not in micmute_sounds
+                # because it's intended to be the internal default.
+                # IMPORTANT: We must use basename because filename might be a full path from config
+                basename = os.path.basename(filename)
+                
+                # 2a. Check external dir for basename (Portability fix)
+                # If config has absolute path from another PC, check if file exists in local sounds dir
+                local_external_path = os.path.join(get_external_sound_dir(), basename)
+                if os.path.exists(local_external_path):
+                    path = local_external_path
+                else:
+                    # 2b. Check internal assets
+                    internal_path = get_internal_asset(basename)
+                    if os.path.exists(internal_path):
+                        path = internal_path
+                    else:
+                        # 3. Final Fallback: Default internal asset (mute.wav / unmute.wav)
+                        # If the user selected a custom file "mario_jump.wav" and it's deleted,
+                        # we fallback to the standard "mute.wav" instead of silence/beep.
+                        # AND we revert the config so the UI reflects this change.
+                        print(f"Custom sound '{filename}' not found. Reverting to default internal asset.")
+                        default_filename = f"{sound_type}.wav"
+                        default_internal = get_internal_asset(default_filename)
+                        
+                        if os.path.exists(default_internal):
+                            path = default_internal
+                            
+                            # Update Config to reflect revert
+                            # We need to update the in-memory config AND save it to disk
+                            if sound_type in self.sound_config:
+                                self.sound_config[sound_type]['file'] = default_filename
+                                self.config_manager.save_config()
+                                # Notify UI if possible (via signal)
+                                signals.setting_changed.emit('sound_config', self.sound_config)
+                        else:
+                            print(f"Default sound for {sound_type} not found in assets.")
             
         # Play
         if path and os.path.exists(path):
@@ -430,7 +476,8 @@ class AudioController:
             if filename and filename != "DEFAULT":
                 print(f"Custom sound '{filename}' not found. Falling back to internal.")
                 # Try internal
-                internal_path = get_internal_asset(f"{sound_type}.wav")
+                basename = os.path.basename(filename)
+                internal_path = get_internal_asset(basename)
                 if os.path.exists(internal_path):
                     try:
                         if self.player is None: self.player = QSoundEffect()
