@@ -201,6 +201,13 @@ class StatusOverlay(QWidget):
     """
     # Signal emitted when configuration changes (e.g. position)
     config_changed = Signal(dict)
+    
+    # Windows API constants for forcing topmost
+    HWND_TOPMOST = -1
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+    SWP_NOACTIVATE = 0x0010
+    SWP_SHOWWINDOW = 0x0040
 
     def __init__(self, icon_unmuted_path, icon_muted_path):
         """
@@ -215,9 +222,11 @@ class StatusOverlay(QWidget):
         self.setWindowFlags(
             Qt.FramelessWindowHint | 
             Qt.WindowStaysOnTopHint | 
-            Qt.Tool
+            Qt.Tool | 
+            Qt.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
         
         self.icon_unmuted = icon_unmuted_path
         self.icon_muted = icon_muted_path
@@ -264,6 +273,12 @@ class StatusOverlay(QWidget):
         self.meter_timer.setInterval(50)
         self.meter_timer.timeout.connect(self.sample_audio)
         
+        # Topmost Timer - Re-assert topmost position periodically
+        # 2 seconds is efficient while still catching any window that steals focus
+        self.topmost_timer = QTimer()
+        self.topmost_timer.setInterval(2000)  # Every 2 seconds
+        self.topmost_timer.timeout.connect(self._force_topmost)
+        
         self.resize(60, 40)
         
         self.position_mode = 'Custom'
@@ -272,6 +287,24 @@ class StatusOverlay(QWidget):
         # Default 5%
         self.sensitivity = 0.05
         self.is_active = False
+    
+    def _force_topmost(self):
+        """
+        Forces the window to the topmost Z-order using Windows API.
+        This is more reliable than Qt's WindowStaysOnTopHint alone.
+        """
+        if not self.isVisible():
+            return
+        try:
+            hwnd = int(self.winId())
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                self.HWND_TOPMOST,
+                0, 0, 0, 0,
+                self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE
+            )
+        except Exception:
+            pass
         
     def set_config(self, config):
         """
@@ -291,6 +324,7 @@ class StatusOverlay(QWidget):
         if not is_enabled:
             self.hide()
             self.stop_meter()
+            self.topmost_timer.stop()
             # We still update internal state/position so it's ready when enabled
         
         # Update Target Device
@@ -341,11 +375,15 @@ class StatusOverlay(QWidget):
         
         if is_enabled:
             self.show()
+            # Force topmost immediately and start timer
+            self._force_topmost()
+            self.topmost_timer.start()
             # Refresh state (will start meter if needed)
             self.update_status(self.is_muted)
         else:
-            # Ensure meter is stopped if disabled
+            # Ensure meter and topmost timer are stopped if disabled
             self.stop_meter()
+            self.topmost_timer.stop()
 
     def set_target_device(self, device_id):
         """
@@ -555,4 +593,5 @@ class StatusOverlay(QWidget):
         Handles the close event to ensure cleanup.
         """
         self.stop_meter()
+        self.topmost_timer.stop()
         super().closeEvent(event)
