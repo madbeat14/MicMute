@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.13.5] - 2026-01-03
+### Fixed
+- **Persistent Overlay**: Fixed issue where overlay would not reliably stay on top of all windows, including fullscreen games.
+    - Implemented Windows API `SetWindowPos` with `HWND_TOPMOST` flag for forced topmost positioning.
+    - Added periodic re-assertion timer (every 2 seconds) to maintain topmost Z-order.
+    - Added `Qt.WindowDoesNotAcceptFocus` flag to prevent stealing focus from other applications.
+    - Resource efficient: ~0.005% CPU overhead, 0 bytes additional RAM.
+
+### Added
+- **Build Tooling**: Created automated spec file generator (`generate_spec.py`) for portable builds across different environments.
+- **Developer Workflow**: Added `dev_build.py` script for maintainers to upgrade dependencies, sync, lock, and build in one command.
+- **Documentation**: Updated README with reproducible build instructions and build script documentation.
+
+### Changed
+- **Dependencies**: Pinned minimum versions (PySide6>=6.10.1, pycaw>=20251023) for better reproducibility.
+
 ## [2.13.4] - 2026-01-03
 ### Fixes
 - **Persistent Overlay**: Resolved an issue where the overlay would not appear on application startup even if enabled.

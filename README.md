@@ -10,11 +10,12 @@ Microphone Mute Toggle - Final Version (PySide6/Qt + Native Hooks)
 - **Zero Dependencies** (Runtime): No 'keyboard' library required.
 - **Theme Aware**: Automatically switches icons based on system theme (Light/Dark).
 - **Device Selection**: Choose specifically which microphone to control.
+- **Persistent Overlay**: Always-on-top overlay showing mute status and voice activity.
 
 ## Installation
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.14+
 - [uv](https://github.com/astral-sh/uv) (Recommended for dependency management)
 
 ### Steps
@@ -51,15 +52,32 @@ uv run python run.py
 python run.py
 ```
 
-### Building the Executable
-To create a standalone `.exe` file:
+## Building the Executable
+
+### Reproducible Build (Recommended)
+This uses the locked dependency versions from `uv.lock` for consistent builds:
 
 ```bash
-uv run python build_exe.py
+# 1. Sync dependencies from lockfile
+uv sync
+
+# 2. Generate spec file for your environment
+python generate_spec.py
+
+# 3. Build the executable
+python build_exe.py
 ```
-The executable will be generated in the `dist/` folder as `MicMute.exe`.
+
+The executable will be generated in `dist/MicMute.exe`.
+
+### Quick Build (if dependencies already installed)
+```bash
+python generate_spec.py && python build_exe.py
+```
 
 ## Project Structure
 - `src/MicMute`: Source code package.
 - `run.py`: Entry point for running from source.
 - `build_exe.py`: Script to build the standalone executable.
+- `generate_spec.py`: Generates PyInstaller spec file with correct paths.
+- `dev_build.py`: Developer script for upgrade + build (maintainer use only).
