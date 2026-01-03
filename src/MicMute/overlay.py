@@ -412,10 +412,11 @@ class StatusOverlay(QWidget):
         # Manage Meter
         # We only run the meter if:
         # 1. Not muted
-        # 2. Overlay is visible (enabled)
+        # 2. Overlay is enabled in config (we check current_config instead of isVisible for startup reliability)
         # 3. VU meter is enabled
         
-        should_run_meter = (not is_muted) and self.isVisible() and self.show_vu
+        is_enabled = self.current_config.get('enabled', False)
+        should_run_meter = (not is_muted) and is_enabled and self.show_vu
         
         if not should_run_meter:
             self.stop_meter()

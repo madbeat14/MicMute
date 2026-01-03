@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.13.4] - 2026-01-03
+### Fixes
+- **Persistent Overlay**: Resolved an issue where the overlay would not appear on application startup even if enabled.
+    - Added explicit state synchronization during application initialization.
+    - Improved robustness of audio meter activation by relying on configuration state instead of widget visibility.
+
 ## [2.13.3] - 2025-11-30
 ### Features
 - **Voice Meter Sensitivity**: Added a sensitivity slider (1-100%) to the Persistent Overlay settings. This allows users to adjust the volume threshold required to trigger the voice activity LED.

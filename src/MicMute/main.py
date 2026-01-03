@@ -18,7 +18,7 @@ from .overlay import MetroOSD, StatusOverlay
 from .input_manager import InputManager
 
 # --- CONFIGURATION ---
-VERSION = "2.13.3"
+VERSION = "2.13.4"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
@@ -316,6 +316,10 @@ def main():
     signals.toggle_mute.connect(audio.toggle_mute)
     signals.set_mute.connect(audio.set_mute_state)
     signals.exit_app.connect(app.quit)
+    
+    # --- INITIAL SYNC ---
+    # Push the initial state to all listeners (Tray, OSD, Overlay)
+    update_tray_state(current_mute_state)
     
     def on_device_changed(new_id):
         """
