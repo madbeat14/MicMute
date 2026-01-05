@@ -274,9 +274,9 @@ class StatusOverlay(QWidget):
         self.meter_timer.timeout.connect(self.sample_audio)
         
         # Topmost Timer - Re-assert topmost position periodically
-        # 2 seconds is efficient while still catching any window that steals focus
+        # 250ms is aggressive but ensures the overlay never gets covered
         self.topmost_timer = QTimer()
-        self.topmost_timer.setInterval(2000)  # Every 2 seconds
+        self.topmost_timer.setInterval(250)  # Every 250ms for aggressive topmost
         self.topmost_timer.timeout.connect(self._force_topmost)
         
         self.resize(60, 40)
@@ -297,11 +297,12 @@ class StatusOverlay(QWidget):
             return
         try:
             hwnd = int(self.winId())
+            # Use SetWindowPos with HWND_TOPMOST to force topmost Z-order
             ctypes.windll.user32.SetWindowPos(
                 hwnd,
                 self.HWND_TOPMOST,
                 0, 0, 0, 0,
-                self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE
+                self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW
             )
         except Exception:
             pass
