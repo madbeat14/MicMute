@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.13.7] - 2026-02-01
+### Fixed
+- **winreg Import**: Fixed missing `winreg` import in `utils.py` that caused theme detection to fail.
+- **Persistent Overlay Topmost**: Significantly improved overlay visibility reliability.
+    - Increased topmost assertion frequency from 250ms to 100ms for faster response.
+    - Added visibility monitor timer (500ms) to auto-restore overlay if it becomes hidden while enabled.
+    - Added area-specific topmost checking using `WindowFromPoint` - only forces topmost when something actually covers the overlay's screen area.
+    - Added `BringWindowToTop` fallback technique for better compatibility with fullscreen games.
+    - Re-applies Qt window flags when overlay loses topmost status.
+
 ## [2.13.5] - 2026-01-03
 ### Fixed
 - **Persistent Overlay**: Fixed issue where overlay would not reliably stay on top of all windows, including fullscreen games.

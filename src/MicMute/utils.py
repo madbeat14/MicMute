@@ -3,6 +3,7 @@ import os
 import ctypes
 import subprocess
 import tempfile
+import winreg
 from ctypes import wintypes, POINTER, c_void_p, c_int, c_long, c_longlong, Structure, sizeof
 from PySide6.QtCore import QTimer, QObject, Signal
 

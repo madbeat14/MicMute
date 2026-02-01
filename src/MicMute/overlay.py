@@ -274,10 +274,17 @@ class StatusOverlay(QWidget):
         self.meter_timer.timeout.connect(self.sample_audio)
         
         # Topmost Timer - Re-assert topmost position periodically
-        # 250ms is aggressive but ensures the overlay never gets covered
+        # 100ms for very aggressive topmost behavior to stay above games
         self.topmost_timer = QTimer()
-        self.topmost_timer.setInterval(250)  # Every 250ms for aggressive topmost
+        self.topmost_timer.setInterval(100)  # Every 100ms for aggressive topmost
         self.topmost_timer.timeout.connect(self._force_topmost)
+        
+        # Visibility Monitor - Detect when window is hidden/buried and auto-restore
+        self.visibility_timer = QTimer()
+        self.visibility_timer.setInterval(500)  # Check every 500ms
+        self.visibility_timer.timeout.connect(self._visibility_check)
+        self._last_visible_state = False
+        self._consecutive_hidden_count = 0
         
         self.resize(60, 40)
         
@@ -297,15 +304,121 @@ class StatusOverlay(QWidget):
             return
         try:
             hwnd = int(self.winId())
+            if hwnd == 0 or hwnd is None:
+                return
+                
             # Use SetWindowPos with HWND_TOPMOST to force topmost Z-order
+            # Add SWP_FRAMECHANGED to force Windows to re-evaluate window styles
             ctypes.windll.user32.SetWindowPos(
                 hwnd,
                 self.HWND_TOPMOST,
                 0, 0, 0, 0,
-                self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW
+                self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW | 0x0020  # SWP_FRAMECHANGED
             )
+            
+            # Additional technique: BringWindowToTop as fallback
+            # This helps in some cases where SetWindowPos alone doesn't work
+            ctypes.windll.user32.BringWindowToTop(hwnd)
+            
         except Exception:
             pass
+            
+    def _visibility_check(self):
+        """
+        Checks if the overlay is actually visible and on top.
+        If it's supposed to be visible but isn't shown or is buried, this restores it.
+        Also auto-toggles the overlay back on if it was somehow hidden while enabled.
+        """
+        is_config_enabled = self.current_config.get('enabled', False)
+        
+        # If overlay is enabled in config but Qt thinks it's not visible, force show it
+        if is_config_enabled and not self.isVisible():
+            self._consecutive_hidden_count += 1
+            if self._consecutive_hidden_count >= 2:
+                print("[Overlay] Auto-restoring: overlay enabled but not visible")
+                # Force show using Qt method
+                self.show()
+                QTimer.singleShot(50, self._force_topmost)
+                self._consecutive_hidden_count = 0
+            return
+        
+        if not self.isVisible():
+            self._consecutive_hidden_count = 0
+            return
+            
+        try:
+            hwnd = int(self.winId())
+            if hwnd == 0 or hwnd is None:
+                return
+                
+            # Check if window is actually visible using IsWindowVisible
+            is_visible = ctypes.windll.user32.IsWindowVisible(hwnd)
+            
+            # Check if window is minimized
+            is_minimized = ctypes.windll.user32.IsIconic(hwnd)
+            
+            # Get current Z-order status - check if we're still topmost
+            # by checking if our window style includes WS_EX_TOPMOST
+            GWL_EXSTYLE = -20
+            WS_EX_TOPMOST = 0x00000008
+            ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            is_topmost = (ex_style & WS_EX_TOPMOST) != 0
+            
+            needs_restore = not is_visible or is_minimized or not is_topmost
+            
+            # If window should be visible but isn't, or is minimized, or lost topmost status
+            if needs_restore:
+                self._consecutive_hidden_count += 1
+                
+                # Only force show after 2 consecutive checks to avoid flickering
+                if self._consecutive_hidden_count >= 2:
+                    if not is_topmost:
+                        print("[Overlay] Restoring topmost status")
+                    
+                    # Restore if minimized
+                    if is_minimized:
+                        ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
+                    
+                    # Force show and topmost again
+                    ctypes.windll.user32.SetWindowPos(
+                        hwnd,
+                        self.HWND_TOPMOST,
+                        0, 0, 0, 0,
+                        self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW
+                    )
+                    
+                    # Also re-apply Qt flags
+                    self.setWindowFlags(
+                        Qt.FramelessWindowHint | 
+                        Qt.WindowStaysOnTopHint | 
+                        Qt.Tool | 
+                        Qt.WindowDoesNotAcceptFocus
+                    )
+                    self.show()  # Need to re-show after changing flags
+                    
+                    self._consecutive_hidden_count = 0
+            else:
+                self._consecutive_hidden_count = 0
+                
+        except Exception as e:
+            # Silently ignore to prevent spam
+            pass
+            
+    def showEvent(self, event):
+        """
+        Override show event to ensure topmost status is applied immediately.
+        """
+        super().showEvent(event)
+        # Force topmost immediately when showing
+        QTimer.singleShot(10, self._force_topmost)
+        QTimer.singleShot(100, self._force_topmost)
+        
+    def raise_(self):
+        """
+        Override raise_ to also force topmost.
+        """
+        super().raise_()
+        self._force_topmost()
         
     def set_config(self, config, initial_mute_state=None):
         """
@@ -384,15 +497,17 @@ class StatusOverlay(QWidget):
                 self.is_muted = initial_mute_state
             
             self.show()
-            # Force topmost immediately and start timer
+            # Force topmost immediately and start timers
             self._force_topmost()
             self.topmost_timer.start()
+            self.visibility_timer.start()
             # Refresh state (will start meter if needed based on actual mute state)
             self.update_status(self.is_muted)
         else:
-            # Ensure meter and topmost timer are stopped if disabled
+            # Ensure meter and timers are stopped if disabled
             self.stop_meter()
             self.topmost_timer.stop()
+            self.visibility_timer.stop()
 
     def set_target_device(self, device_id, fallback_device_id=None):
         """
@@ -609,4 +724,5 @@ class StatusOverlay(QWidget):
         """
         self.stop_meter()
         self.topmost_timer.stop()
+        self.visibility_timer.stop()
         super().closeEvent(event)
