@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, 
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QPixmap, QCursor
 from PySide6.QtSvg import QSvgRenderer
 import ctypes
+from ctypes import wintypes
 
 class MetroOSD(QWidget):
     """
@@ -326,7 +327,8 @@ class StatusOverlay(QWidget):
     def _visibility_check(self):
         """
         Checks if the overlay is actually visible and on top.
-        If it's supposed to be visible but isn't shown or is buried, this restores it.
+        Uses AREA-SPECIFIC checking: only forces topmost if something is covering
+        the overlay's actual screen area, not just if another topmost window exists.
         Also auto-toggles the overlay back on if it was somehow hidden while enabled.
         """
         is_config_enabled = self.current_config.get('enabled', False)
@@ -357,23 +359,45 @@ class StatusOverlay(QWidget):
             # Check if window is minimized
             is_minimized = ctypes.windll.user32.IsIconic(hwnd)
             
-            # Get current Z-order status - check if we're still topmost
-            # by checking if our window style includes WS_EX_TOPMOST
-            GWL_EXSTYLE = -20
-            WS_EX_TOPMOST = 0x00000008
-            ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            is_topmost = (ex_style & WS_EX_TOPMOST) != 0
+            # AREA-SPECIFIC CHECK: Check if something is covering our overlay
+            # by getting the window handle at the center of our overlay
+            is_covered = False
             
-            needs_restore = not is_visible or is_minimized or not is_topmost
+            # Get overlay position (screen coordinates)
+            overlay_rect = self.frameGeometry()
+            center_x = overlay_rect.center().x()
+            center_y = overlay_rect.center().y()
             
-            # If window should be visible but isn't, or is minimized, or lost topmost status
+            # Check multiple points (center and corners) for robustness
+            points_to_check = [
+                (center_x, center_y),  # Center
+                (overlay_rect.left() + 5, overlay_rect.top() + 5),  # Top-left
+                (overlay_rect.right() - 5, overlay_rect.bottom() - 5),  # Bottom-right
+            ]
+            
+            for x, y in points_to_check:
+                # WindowFromPoint returns the window at the specified point
+                hwnd_at_point = ctypes.windll.user32.WindowFromPoint(
+                    wintypes.POINT(x, y)
+                )
+                
+                # If the window at this point is not our overlay, something is covering us
+                if hwnd_at_point and hwnd_at_point != hwnd:
+                    # Check if the covering window is visible
+                    if ctypes.windll.user32.IsWindowVisible(hwnd_at_point):
+                        is_covered = True
+                        break
+            
+            needs_restore = not is_visible or is_minimized or is_covered
+            
+            # If window should be visible but isn't, or is minimized, or is covered
             if needs_restore:
                 self._consecutive_hidden_count += 1
                 
                 # Only force show after 2 consecutive checks to avoid flickering
                 if self._consecutive_hidden_count >= 2:
-                    if not is_topmost:
-                        print("[Overlay] Restoring topmost status")
+                    if is_covered:
+                        print(f"[Overlay] Something is covering the overlay area, forcing topmost")
                     
                     # Restore if minimized
                     if is_minimized:
@@ -387,20 +411,11 @@ class StatusOverlay(QWidget):
                         self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW
                     )
                     
-                    # Also re-apply Qt flags
-                    self.setWindowFlags(
-                        Qt.FramelessWindowHint | 
-                        Qt.WindowStaysOnTopHint | 
-                        Qt.Tool | 
-                        Qt.WindowDoesNotAcceptFocus
-                    )
-                    self.show()  # Need to re-show after changing flags
-                    
                     self._consecutive_hidden_count = 0
             else:
                 self._consecutive_hidden_count = 0
                 
-        except Exception as e:
+        except Exception:
             # Silently ignore to prevent spam
             pass
             

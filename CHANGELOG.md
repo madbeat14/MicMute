@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.8] - 2026-02-01
+### Improved
+- **Area-Specific Topmost Checking**: Overlay now only forces topmost when something is actually covering its screen area.
+    - Uses `WindowFromPoint` to check center and corners of overlay.
+    - If you have another topmost window (like Terminal) in a different area of the screen, it won't trigger the overlay.
+    - Only reacts when the overlay's specific location is obscured.
+
 ## [2.13.7] - 2026-02-01
 ### Fixed
 - **winreg Import**: Fixed missing `winreg` import in `utils.py` that caused theme detection to fail.
