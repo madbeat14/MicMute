@@ -38,7 +38,9 @@ class ConfigManager:
             'y': 100,
             'position_mode': 'Custom',
             'locked': False,
-            'sensitivity': 5
+            'sensitivity': 5,
+            'device_id': None,
+            'scale': 100
         }
 
     def load_config(self):

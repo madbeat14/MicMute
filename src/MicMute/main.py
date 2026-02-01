@@ -62,9 +62,12 @@ def main():
     osd.set_config(audio.osd_config)
     
     # Persistent Overlay Initialization
+    # FIX: Pass current_mute_state to overlay.set_config() so it knows the actual mute state
+    # during startup initialization. Also pass audio.device_id as fallback.
     overlay = StatusOverlay(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
-    overlay.set_config(audio.persistent_overlay)
-    # overlay.set_target_device(audio.device_id) # Removed to allow config to control device
+    overlay.set_config(audio.persistent_overlay, initial_mute_state=current_mute_state)
+    # Set fallback device: if overlay config doesn't specify a device, use the app's current device
+    overlay.set_target_device(audio.persistent_overlay.get('device_id'), fallback_device_id=audio.device_id)
     overlay.config_changed.connect(audio.update_persistent_overlay)
     
     def get_current_icon(muted, light_theme):
@@ -318,6 +321,11 @@ def main():
     signals.exit_app.connect(app.quit)
     
     # --- INITIAL SYNC ---
+    # FIX: Ensure overlay mute state is synchronized before triggering update_tray_state
+    # which would call overlay.update_status(). This prevents the overlay from having
+    # stale mute state on startup.
+    overlay.is_muted = current_mute_state
+    
     # Push the initial state to all listeners (Tray, OSD, Overlay)
     update_tray_state(current_mute_state)
     
@@ -363,7 +371,10 @@ def main():
             action_overlay.setChecked(value.get('enabled', False))
             action_overlay.blockSignals(False)
             # Live Update Overlay
+            # Note: When toggling from settings, we don't pass initial_mute_state
+            # because current mute state is already known to the overlay
             overlay.set_config(value)
+            overlay.set_target_device(value.get('device_id'), fallback_device_id=audio.device_id)
 
     signals.setting_changed.connect(on_setting_changed)
 

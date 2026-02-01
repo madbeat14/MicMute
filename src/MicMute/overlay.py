@@ -307,12 +307,14 @@ class StatusOverlay(QWidget):
         except Exception:
             pass
         
-    def set_config(self, config):
+    def set_config(self, config, initial_mute_state=None):
         """
         Updates the overlay configuration.
         
         Args:
             config (dict): Configuration dictionary.
+            initial_mute_state (bool, optional): Initial mute state for startup sync.
+                                               If provided, synchronizes overlay with this state.
         """
         self.current_config = config.copy()
         
@@ -375,24 +377,36 @@ class StatusOverlay(QWidget):
             self.apply_position()
         
         if is_enabled:
+            # FIX: Sync initial mute state if provided (from startup)
+            # This ensures the overlay knows the actual current mute state
+            # before attempting to show and start the meter
+            if initial_mute_state is not None:
+                self.is_muted = initial_mute_state
+            
             self.show()
             # Force topmost immediately and start timer
             self._force_topmost()
             self.topmost_timer.start()
-            # Refresh state (will start meter if needed)
+            # Refresh state (will start meter if needed based on actual mute state)
             self.update_status(self.is_muted)
         else:
             # Ensure meter and topmost timer are stopped if disabled
             self.stop_meter()
             self.topmost_timer.stop()
 
-    def set_target_device(self, device_id):
+    def set_target_device(self, device_id, fallback_device_id=None):
         """
         Sets the target device for the VU meter.
         
         Args:
             device_id (str): The ID of the device to monitor.
+            fallback_device_id (str, optional): Fallback device ID if device_id is None.
         """
+        # FIX: Use fallback device if primary device_id is not specified
+        # This ensures the overlay uses the correct audio device on startup
+        if device_id is None and fallback_device_id is not None:
+            device_id = fallback_device_id
+            
         self.target_device_id = device_id
         # Restart meter if running to switch device
         if self.meter_timer.isActive():
