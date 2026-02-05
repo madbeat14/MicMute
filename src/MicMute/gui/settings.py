@@ -178,11 +178,9 @@ class BeepSettingsWidget(QWidget):
         self.mode_combo.currentTextChanged.connect(self.toggle_mode_visibility)
         self.mode_combo.currentTextChanged.connect(self.apply_mode)
         
-        # Instant Apply for Volume
+        # Instant Apply for Volume (only connect to sliders to avoid duplicate triggers)
         self.mute_vol_slider.valueChanged.connect(self.apply_settings)
-        self.mute_vol_spin.valueChanged.connect(self.apply_settings)
         self.unmute_vol_slider.valueChanged.connect(self.apply_settings)
-        self.unmute_vol_spin.valueChanged.connect(self.apply_settings)
         
         # Initial Visibility
         self.toggle_mode_visibility(self.mode_combo.currentText())
@@ -535,12 +533,11 @@ class OsdSettingsWidget(QWidget):
         layout.addRow("Opacity:", opacity_layout)
         layout.addRow("Position:", self.pos_combo)
         
-        # Instant Apply
+        # Instant Apply (only connect to sliders to avoid duplicate triggers)
         self.enabled_cb.toggled.connect(self.apply_settings)
-        self.px_spin.valueChanged.connect(self.apply_settings)
+        self.scale_slider.valueChanged.connect(self.apply_settings)
         self.pos_combo.currentTextChanged.connect(self.apply_settings)
         self.opacity_slider.valueChanged.connect(self.apply_settings)
-        self.opacity_spin.valueChanged.connect(self.apply_settings)
         
         # Sync
         signals.setting_changed.connect(self.on_setting_changed)
@@ -701,16 +698,14 @@ class OverlaySettingsWidget(QWidget):
         layout.addRow("Opacity:", opacity_layout)
         layout.addRow("Sensitivity:", sens_layout)
         
-        # Instant Apply
+        # Instant Apply (only connect to sliders to avoid duplicate triggers)
         self.enabled_cb.toggled.connect(self.apply_settings)
         self.vu_cb.toggled.connect(self.apply_settings)
         self.locked_cb.toggled.connect(self.apply_settings)
         self.pos_mode_combo.currentTextChanged.connect(self.apply_settings)
-        self.px_spin.valueChanged.connect(self.apply_settings)
+        self.scale_slider.valueChanged.connect(self.apply_settings)
         self.opacity_slider.valueChanged.connect(self.apply_settings)
-        self.opacity_spin.valueChanged.connect(self.apply_settings)
         self.sens_slider.valueChanged.connect(self.apply_settings)
-        self.sens_spin.valueChanged.connect(self.apply_settings)
         
         # Sync
         signals.setting_changed.connect(self.on_setting_changed)
@@ -826,12 +821,30 @@ class SettingsDialog(QDialog):
         # Buttons
         btn_layout = QHBoxLayout()
         self.btn_close = QPushButton("Close")
-        self.btn_close.clicked.connect(self.accept)
+        self.btn_close.clicked.connect(self.on_close_clicked)
         
         btn_layout.addStretch()
         btn_layout.addWidget(self.btn_close)
         layout.addLayout(btn_layout)
+    
+    def on_close_clicked(self):
+        """Handler for close button click - applies settings and closes."""
+        self.accept()
 
+    def accept(self):
+        """
+        Applies all settings before closing the dialog.
+        """
+        # Apply hotkey configuration to the hook
+        hotkey_config = self.hotkey_widget.get_config()
+        self.audio.update_hotkey_config(hotkey_config)
+        self.hook_thread.update_config(hotkey_config)
+        
+        # Emit signal to notify main window of changes
+        self.settings_applied.emit()
+        
+        super().accept()
+    
     def closeEvent(self, event):
         """
         Handles the close event to clean up resources.

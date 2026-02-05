@@ -1,9 +1,10 @@
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, Signal, Slot
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, Signal, Slot, QThread
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QPixmap, QCursor
 from PySide6.QtSvg import QSvgRenderer
 import ctypes
 from ctypes import wintypes
+import threading
 
 class MetroOSD(QWidget):
     """
@@ -196,6 +197,43 @@ except ImportError:
 
 from PySide6.QtWidgets import QProgressBar, QHBoxLayout
 
+class AudioMeterWorker(QThread):
+    """
+    Worker thread for sampling audio meter values.
+    Runs COM operations in background to avoid blocking UI.
+    """
+    peak_detected = Signal(float)
+    error_occurred = Signal()
+    
+    def __init__(self, meter, sensitivity):
+        super().__init__()
+        self.meter = meter
+        self.sensitivity = sensitivity
+        self._running = False
+        self._lock = threading.Lock()
+        
+    def set_sensitivity(self, value):
+        with self._lock:
+            self.sensitivity = value
+    
+    def stop(self):
+        self._running = False
+        self.wait(100)  # Wait up to 100ms for thread to finish
+        
+    def run(self):
+        self._running = True
+        while self._running:
+            try:
+                if self.meter:
+                    peak_value = self.meter.GetPeakValue()
+                    self.peak_detected.emit(peak_value)
+            except Exception:
+                self.error_occurred.emit()
+                break
+            # 50ms interval = 20Hz sampling rate
+            self.msleep(50)
+
+
 class StatusOverlay(QWidget):
     """
     A persistent overlay widget showing microphone status and voice activity.
@@ -269,23 +307,21 @@ class StatusOverlay(QWidget):
         
         # Audio Meter
         self.meter = None
-        self.meter_timer = QTimer()
-        # 20Hz
-        self.meter_timer.setInterval(50)
-        self.meter_timer.timeout.connect(self.sample_audio)
+        self.meter_worker = None
         
         # Topmost Timer - Re-assert topmost position periodically
-        # 100ms for very aggressive topmost behavior to stay above games
+        # 2000ms to reduce GUI thread load when settings is open
         self.topmost_timer = QTimer()
-        self.topmost_timer.setInterval(100)  # Every 100ms for aggressive topmost
+        self.topmost_timer.setInterval(2000)  # Every 2000ms (was 500ms)
         self.topmost_timer.timeout.connect(self._force_topmost)
         
         # Visibility Monitor - Detect when window is hidden/buried and auto-restore
         self.visibility_timer = QTimer()
-        self.visibility_timer.setInterval(500)  # Check every 500ms
+        self.visibility_timer.setInterval(3000)  # Check every 3000ms (was 1000ms)
         self.visibility_timer.timeout.connect(self._visibility_check)
         self._last_visible_state = False
         self._consecutive_hidden_count = 0
+        self._last_topmost_time = 0  # Track last SetWindowPos call
         
         self.resize(60, 40)
         
@@ -300,26 +336,37 @@ class StatusOverlay(QWidget):
         """
         Forces the window to the topmost Z-order using Windows API.
         This is more reliable than Qt's WindowStaysOnTopHint alone.
+        Rate-limited to prevent GUI thread flooding.
         """
         if not self.isVisible():
             return
+            
+        # Rate limiting: Don't call more than once every 500ms
+        import time
+        current_time = int(time.time() * 1000)
+        if current_time - self._last_topmost_time < 500:
+            return
+        self._last_topmost_time = current_time
+            
         try:
             hwnd = int(self.winId())
             if hwnd == 0 or hwnd is None:
                 return
-                
-            # Use SetWindowPos with HWND_TOPMOST to force topmost Z-order
-            # Add SWP_FRAMECHANGED to force Windows to re-evaluate window styles
-            ctypes.windll.user32.SetWindowPos(
-                hwnd,
-                self.HWND_TOPMOST,
-                0, 0, 0, 0,
-                self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW | 0x0020  # SWP_FRAMECHANGED
-            )
             
-            # Additional technique: BringWindowToTop as fallback
-            # This helps in some cases where SetWindowPos alone doesn't work
-            ctypes.windll.user32.BringWindowToTop(hwnd)
+            # Check if already topmost before calling SetWindowPos
+            # This avoids unnecessary window operations that cause flicker
+            current_ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE = -20
+            WS_EX_TOPMOST = 0x00000008
+            
+            # Only force topmost if not already topmost
+            if not (current_ex_style & WS_EX_TOPMOST):
+                # Use SetWindowPos with HWND_TOPMOST to force topmost Z-order
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd,
+                    self.HWND_TOPMOST,
+                    0, 0, 0, 0,
+                    self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW
+                )
             
         except Exception:
             pass
@@ -327,9 +374,7 @@ class StatusOverlay(QWidget):
     def _visibility_check(self):
         """
         Checks if the overlay is actually visible and on top.
-        Uses AREA-SPECIFIC checking: only forces topmost if something is covering
-        the overlay's actual screen area, not just if another topmost window exists.
-        Also auto-toggles the overlay back on if it was somehow hidden while enabled.
+        Simplified to reduce GUI thread load - only checks essential conditions.
         """
         is_config_enabled = self.current_config.get('enabled', False)
         
@@ -338,9 +383,7 @@ class StatusOverlay(QWidget):
             self._consecutive_hidden_count += 1
             if self._consecutive_hidden_count >= 2:
                 print("[Overlay] Auto-restoring: overlay enabled but not visible")
-                # Force show using Qt method
                 self.show()
-                QTimer.singleShot(50, self._force_topmost)
                 self._consecutive_hidden_count = 0
             return
         
@@ -352,65 +395,15 @@ class StatusOverlay(QWidget):
             hwnd = int(self.winId())
             if hwnd == 0 or hwnd is None:
                 return
-                
-            # Check if window is actually visible using IsWindowVisible
-            is_visible = ctypes.windll.user32.IsWindowVisible(hwnd)
             
-            # Check if window is minimized
+            # Only check if minimized - skip expensive WindowFromPoint checks
             is_minimized = ctypes.windll.user32.IsIconic(hwnd)
             
-            # AREA-SPECIFIC CHECK: Check if something is covering our overlay
-            # by getting the window handle at the center of our overlay
-            is_covered = False
-            
-            # Get overlay position (screen coordinates)
-            overlay_rect = self.frameGeometry()
-            center_x = overlay_rect.center().x()
-            center_y = overlay_rect.center().y()
-            
-            # Check multiple points (center and corners) for robustness
-            points_to_check = [
-                (center_x, center_y),  # Center
-                (overlay_rect.left() + 5, overlay_rect.top() + 5),  # Top-left
-                (overlay_rect.right() - 5, overlay_rect.bottom() - 5),  # Bottom-right
-            ]
-            
-            for x, y in points_to_check:
-                # WindowFromPoint returns the window at the specified point
-                hwnd_at_point = ctypes.windll.user32.WindowFromPoint(
-                    wintypes.POINT(x, y)
-                )
-                
-                # If the window at this point is not our overlay, something is covering us
-                if hwnd_at_point and hwnd_at_point != hwnd:
-                    # Check if the covering window is visible
-                    if ctypes.windll.user32.IsWindowVisible(hwnd_at_point):
-                        is_covered = True
-                        break
-            
-            needs_restore = not is_visible or is_minimized or is_covered
-            
-            # If window should be visible but isn't, or is minimized, or is covered
-            if needs_restore:
+            if is_minimized:
                 self._consecutive_hidden_count += 1
-                
-                # Only force show after 2 consecutive checks to avoid flickering
                 if self._consecutive_hidden_count >= 2:
-                    if is_covered:
-                        print(f"[Overlay] Something is covering the overlay area, forcing topmost")
-                    
                     # Restore if minimized
-                    if is_minimized:
-                        ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
-                    
-                    # Force show and topmost again
-                    ctypes.windll.user32.SetWindowPos(
-                        hwnd,
-                        self.HWND_TOPMOST,
-                        0, 0, 0, 0,
-                        self.SWP_NOMOVE | self.SWP_NOSIZE | self.SWP_NOACTIVATE | self.SWP_SHOWWINDOW
-                    )
-                    
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
                     self._consecutive_hidden_count = 0
             else:
                 self._consecutive_hidden_count = 0
@@ -424,9 +417,8 @@ class StatusOverlay(QWidget):
         Override show event to ensure topmost status is applied immediately.
         """
         super().showEvent(event)
-        # Force topmost immediately when showing
-        QTimer.singleShot(10, self._force_topmost)
-        QTimer.singleShot(100, self._force_topmost)
+        # Force topmost once with a small delay to allow window to fully show
+        QTimer.singleShot(50, self._force_topmost)
         
     def raise_(self):
         """
@@ -539,7 +531,7 @@ class StatusOverlay(QWidget):
             
         self.target_device_id = device_id
         # Restart meter if running to switch device
-        if self.meter_timer.isActive():
+        if self.meter_worker and self.meter_worker.isRunning():
             self.stop_meter()
             self.start_meter()
 
@@ -627,9 +619,10 @@ class StatusOverlay(QWidget):
     def start_meter(self):
         """
         Starts the audio meter for the target device.
+        Uses a background thread to avoid blocking the UI.
         """
         if not HAS_COM: return
-        if self.meter_timer.isActive(): return
+        if self.meter_worker and self.meter_worker.isRunning(): return
         
         try:
             # Create Enumerator
@@ -665,7 +658,11 @@ class StatusOverlay(QWidget):
             self.audio_client.Initialize(0, 0, 1000000, 0, fmt, None)
             self.audio_client.Start()
             
-            self.meter_timer.start()
+            # Start worker thread instead of timer
+            self.meter_worker = AudioMeterWorker(self.meter, self.sensitivity)
+            self.meter_worker.peak_detected.connect(self.on_peak_detected)
+            self.meter_worker.error_occurred.connect(self.stop_meter)
+            self.meter_worker.start()
         except Exception as e:
             print(f"Error starting meter: {e}")
             pass
@@ -674,7 +671,10 @@ class StatusOverlay(QWidget):
         """
         Stops the audio meter and releases resources.
         """
-        self.meter_timer.stop()
+        if self.meter_worker:
+            self.meter_worker.stop()
+            self.meter_worker = None
+        
         self.meter = None
         
         if hasattr(self, 'audio_client') and self.audio_client:
@@ -685,23 +685,23 @@ class StatusOverlay(QWidget):
             self.audio_client = None
             
         self.set_active(False)
+    
+    @Slot(float)
+    def on_peak_detected(self, peak_value):
+        """
+        Called when the worker thread detects a peak value.
+        Runs on main thread via signal/slot.
+        """
+        is_loud = peak_value > self.sensitivity
+        self.set_active(is_loud)
 
     @Slot()
     def sample_audio(self):
         """
-        Samples the audio meter for peak value and updates the LED.
+        DEPRECATED: Now handled by AudioMeterWorker thread.
+        Kept for compatibility.
         """
-        if not self.meter: return
-        try:
-            # GetPeakValue returns the float value directly because of ['out'] parameter
-            peak_value = self.meter.GetPeakValue()
-            
-            # Threshold Logic
-            is_loud = peak_value > self.sensitivity
-            self.set_active(is_loud)
-            
-        except Exception:
-            self.stop_meter()
+        pass
 
     # Dragging Logic
     def mousePressEvent(self, event):
