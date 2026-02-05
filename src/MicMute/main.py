@@ -18,7 +18,7 @@ from .overlay import MetroOSD, StatusOverlay
 from .input_manager import InputManager
 
 # --- CONFIGURATION ---
-VERSION = "2.13.8"
+VERSION = "2.13.9"
 
 # Paths to SVG icons
 if getattr(sys, 'frozen', False):
