@@ -83,6 +83,8 @@ class SingleHotkeyInputWidget(QWidget):
         """
         Starts capturing a key press for hotkey assignment.
         """
+        if self.hook is None:
+            return
         self.capture_btn.setText("...")
         self.capture_btn.setEnabled(False)
         # We need a way to know WHICH widget requested capture.
@@ -100,8 +102,9 @@ class SingleHotkeyInputWidget(QWidget):
         """
         if not getattr(self, 'is_capturing', False):
             return
-            
-        self.hook.stop_recording()
+        
+        if self.hook:
+            self.hook.stop_recording()
         self.is_capturing = False
         self.current_vk = vk
         self.capture_btn.setText("Set")

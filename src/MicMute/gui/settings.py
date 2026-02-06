@@ -303,18 +303,6 @@ class BeepSettingsWidget(QWidget):
             self.unmute_count.setValue(value['unmute']['count'])
             self.blockSignals(False)
         elif key == 'sound_config':
-            self.blockSignals(True)
-            # Update Mute Path
-            mute_cfg = value.get('mute', {})
-            mute_file = mute_cfg.get('file') if isinstance(mute_cfg, dict) else mute_cfg
-            self.mute_path.setText(os.path.basename(mute_file) if mute_file else "")
-            
-            # Update Unmute Path
-            unmute_cfg = value.get('unmute', {})
-            unmute_file = unmute_cfg.get('file') if isinstance(unmute_cfg, dict) else unmute_cfg
-            self.unmute_path.setText(os.path.basename(unmute_file) if unmute_file else "")
-            self.blockSignals(False)
-        elif key == 'sound_config':
             # Update basenames and volumes
             self.blockSignals(True)
             
@@ -394,6 +382,13 @@ class BeepSettingsWidget(QWidget):
             'sound': final_sound_config
         }
 
+    def cleanup(self):
+        """Disconnect signals to prevent crashes after widget destruction."""
+        try:
+            signals.setting_changed.disconnect(self.on_setting_changed)
+        except (RuntimeError, TypeError):
+            pass
+
 class AfkSettingsWidget(QWidget):
     """
     Widget for configuring AFK (Away From Keyboard) timeout settings.
@@ -458,6 +453,13 @@ class AfkSettingsWidget(QWidget):
             'enabled': self.enabled_cb.isChecked(),
             'timeout': self.timeout_spin.value()
         }
+
+    def cleanup(self):
+        """Disconnect signals to prevent crashes after widget destruction."""
+        try:
+            signals.setting_changed.disconnect(self.on_setting_changed)
+        except (RuntimeError, TypeError):
+            pass
 
 class OsdSettingsWidget(QWidget):
     """
@@ -601,6 +603,14 @@ class OsdSettingsWidget(QWidget):
             'position': pos_map.get(self.pos_combo.currentText(), "Bottom-Center"),
             'opacity': self.opacity_slider.value()
         }
+
+    def cleanup(self):
+        """Disconnect signals to prevent crashes after widget destruction."""
+        try:
+            signals.setting_changed.disconnect(self.on_setting_changed)
+        except (RuntimeError, TypeError):
+            # Signal was not connected or already disconnected
+            pass
 
 class OverlaySettingsWidget(QWidget):
     """
@@ -761,6 +771,14 @@ class OverlaySettingsWidget(QWidget):
             'y': self.audio.persistent_overlay.get('y', 100)
         }
 
+    def cleanup(self):
+        """Disconnect signals to prevent crashes after widget destruction."""
+        try:
+            signals.setting_changed.disconnect(self.on_setting_changed)
+        except (RuntimeError, TypeError):
+            # Signal was not connected or already disconnected
+            pass
+
 from PySide6.QtCore import Qt, Signal
 from winsound import Beep
 
@@ -801,7 +819,8 @@ class SettingsDialog(QDialog):
         
         # Tab 3: Hotkeys
         # We need the hook instance from the thread
-        self.hotkey_widget = HotkeySettingsWidget(self.audio, self.hook_thread.hook)
+        hook_instance = getattr(self.hook_thread, 'hook', None) if self.hook_thread else None
+        self.hotkey_widget = HotkeySettingsWidget(self.audio, hook_instance)
         self.tabs.addTab(self.hotkey_widget, "Hotkeys")
         
         # Tab 4: Misc (AFK, OSD, Overlay)
@@ -856,5 +875,9 @@ class SettingsDialog(QDialog):
         Args:
             event (QCloseEvent): The close event.
         """
+        self.beep_widget.cleanup()
+        self.afk_widget.cleanup()
         self.hotkey_widget.cleanup()
+        self.osd_widget.cleanup()
+        self.overlay_widget.cleanup()
         super().closeEvent(event)

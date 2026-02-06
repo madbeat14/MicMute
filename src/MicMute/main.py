@@ -224,27 +224,36 @@ def main() -> int:
                 action.setCheckable(True)
                 action.setChecked(dev_id == current_id)
 
-                def on_triggered(checked: bool, d_id: str = dev_id) -> None:
-                    if set_default_device(d_id):
-                        if audio.set_device_by_id(d_id):
-                            tray.showMessage(
-                                "Success",
-                                f"Switched to: {name}",
-                                QSystemTrayIcon.Information,
-                                2000,
-                            )
-                            overlay.set_target_device(d_id)
+                def on_triggered(checked: bool, d_id: str = dev_id, dev_name: str = name) -> None:
+                    try:
+                        if set_default_device(d_id):
+                            if audio.set_device_by_id(d_id):
+                                tray.showMessage(
+                                    "Success",
+                                    f"Switched to: {dev_name}",
+                                    QSystemTrayIcon.Information,
+                                    2000,
+                                )
+                                overlay.set_target_device(d_id)
+                            else:
+                                tray.showMessage(
+                                    "Error",
+                                    "Failed to set application device.",
+                                    QSystemTrayIcon.Warning,
+                                    2000,
+                                )
                         else:
                             tray.showMessage(
                                 "Error",
-                                "Failed to set application device.",
+                                "Failed to set Windows default.",
                                 QSystemTrayIcon.Warning,
                                 2000,
                             )
-                    else:
+                    except Exception as e:
+                        print(f"Error switching device: {e}")
                         tray.showMessage(
                             "Error",
-                            "Failed to set Windows default.",
+                            f"Device error: {e}",
                             QSystemTrayIcon.Warning,
                             2000,
                         )
