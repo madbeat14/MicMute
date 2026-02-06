@@ -344,7 +344,11 @@ class BeepSettingsWidget(QWidget):
         """
         # Process pending copies
         sounds_dir = get_external_sound_dir()
-        os.makedirs(sounds_dir, exist_ok=True)
+        try:
+            os.makedirs(sounds_dir, exist_ok=True)
+        except OSError as e:
+            print(f"Warning: Could not create sounds directory: {e}")
+            # Continue without copying - files will remain in pending
         
         final_sound_config = self.audio.sound_config.copy()
         

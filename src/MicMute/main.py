@@ -1,246 +1,345 @@
-import sys
-import os
-import gc
-import warnings
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QDialog, QMessageBox
-from PySide6.QtGui import QIcon, QAction, QDesktopServices
-from PySide6.QtCore import QTimer, QUrl
+"""Main entry point for MicMute application.
 
-# Suppress warnings (e.g. pycaw COM errors)
+This module initializes the Qt application, system tray icon, audio controller,
+and all background threads for the MicMute application.
+"""
+
+from __future__ import annotations
+
+import gc
+import os
+import sys
+import warnings
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QMenu,
+    QMessageBox,
+    QSystemTrayIcon,
+)
+from pycaw.pycaw import AudioUtilities
+
+from .config import CONFIG_FILE
+from .core import audio, signals
+from .gui import SettingsDialog, ThemeListener
+from .input_manager import InputManager
+from .overlay import MetroOSD, StatusOverlay
+from .utils import (
+    get_idle_duration,
+    is_system_light_theme,
+    set_default_device,
+    set_high_priority,
+    get_run_on_startup,
+    set_run_on_startup,
+)
+
+# Suppress warnings (e.g., pycaw COM errors)
 warnings.simplefilter("ignore", UserWarning)
 
-from .core import signals, audio
-from .config import CONFIG_FILE
-from .utils import is_system_light_theme, get_idle_duration, set_default_device, set_high_priority, get_run_on_startup, set_run_on_startup
-from pycaw.pycaw import AudioUtilities
-from .gui import ThemeListener, SettingsDialog
-from .overlay import MetroOSD, StatusOverlay
-from .input_manager import InputManager
+__all__ = ["main"]
 
-# --- CONFIGURATION ---
-VERSION = "2.13.9"
+# Get version from package metadata
+try:
+    from importlib.metadata import version as get_version
+    VERSION: str = get_version("micmute")
+except Exception:
+    # Fallback for development/uninstalled
+    try:
+        from ._version import __version__ as VERSION
+    except ImportError:
+        VERSION = "0.0.0+dev"
 
-# Paths to SVG icons
-if getattr(sys, 'frozen', False):
-    # Running as compiled EXE
-    BASE_DIR = sys._MEIPASS
-    ASSETS_DIR = os.path.join(BASE_DIR, "MicMute", "assets")
-else:
-    # Running from source
-    BASE_DIR = os.path.dirname(__file__)
-    ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 
-SVG_WHITE_UNMUTED = os.path.join(ASSETS_DIR, "mic_white.svg")
-SVG_WHITE_MUTED = os.path.join(ASSETS_DIR, "mic_muted_white.svg")
-SVG_BLACK_UNMUTED = os.path.join(ASSETS_DIR, "mic_black.svg")
-SVG_BLACK_MUTED = os.path.join(ASSETS_DIR, "mic_muted_black.svg")
+def _get_assets_dir() -> Path:
+    """Get the path to the assets directory.
 
-def main():
+    Returns:
+        Path to the assets directory.
     """
-    Main entry point for the MicMute application.
-    Initializes the Qt application, audio controller, tray icon, and background threads.
+    if getattr(sys, "frozen", False):
+        # Running as compiled EXE
+        return Path(sys._MEIPASS) / "MicMute" / "assets"
+    else:
+        # Running from source
+        return Path(__file__).parent / "assets"
+
+
+def _ensure_app_directories() -> None:
+    """Ensure all application directories exist.
+    
+    Creates necessary directories for config and sound files.
+    Silently handles permission errors.
     """
+    from .config import CONFIG_FILE
+    from .utils import get_external_sound_dir
+    
+    # Ensure config directory exists
+    try:
+        config_path = Path(CONFIG_FILE)
+        if str(config_path.parent) and str(config_path.parent) != ".":
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning: Could not create config directory: {e}")
+    
+    # Ensure sounds directory exists
+    try:
+        sounds_dir = get_external_sound_dir()
+        sounds_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning: Could not create sounds directory: {e}")
+
+
+def _setup_qt_environment() -> None:
+    """Setup Qt environment variables to use proper cache locations.
+    
+    This prevents Qt from trying to write to protected directories.
+    """
+    import os
+    
+    # Set Qt cache directory to AppData/Local
+    if getattr(sys, "frozen", False):
+        qt_cache_dir = Path.home() / "AppData" / "Local" / "MicMute" / "QtCache"
+        try:
+            qt_cache_dir.mkdir(parents=True, exist_ok=True)
+            os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(Path(sys._MEIPASS) / "PySide6" / "plugins")
+            os.environ["QML2_IMPORT_PATH"] = str(Path(sys._MEIPASS) / "PySide6" / "qml")
+        except Exception:
+            pass
+
+
+def main() -> int:
+    """Main entry point for the MicMute application.
+
+    Initializes the Qt application, audio controller, tray icon,
+    and background threads.
+
+    Returns:
+        Application exit code.
+    """
+    # Setup Qt environment before creating QApplication
+    _setup_qt_environment()
+    
+    # Ensure directories before anything else
+    _ensure_app_directories()
+    
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
+    # Initialize audio device
     if not audio.find_device():
         print("Warning: No device initially found.")
 
-    # Load Icons
-    icon_white_unmuted = QIcon(SVG_WHITE_UNMUTED)
-    icon_white_muted = QIcon(SVG_WHITE_MUTED)
-    icon_black_unmuted = QIcon(SVG_BLACK_UNMUTED)
-    icon_black_muted = QIcon(SVG_BLACK_MUTED)
+    # Setup paths
+    assets_dir = _get_assets_dir()
+    svg_white_unmuted = str(assets_dir / "mic_white.svg")
+    svg_white_muted = str(assets_dir / "mic_muted_white.svg")
+    svg_black_unmuted = str(assets_dir / "mic_black.svg")
+    svg_black_muted = str(assets_dir / "mic_muted_black.svg")
 
+    # Load Icons
+    icon_white_unmuted = QIcon(svg_white_unmuted)
+    icon_white_muted = QIcon(svg_white_muted)
+    icon_black_unmuted = QIcon(svg_black_unmuted)
+    icon_black_muted = QIcon(svg_black_muted)
+
+    def get_current_icon(muted: bool, light_theme: bool) -> QIcon:
+        """Determine the appropriate icon based on mute state and theme.
+
+        Args:
+            muted: Current mute state.
+            light_theme: True if system is in light mode.
+
+        Returns:
+            The appropriate QIcon object.
+        """
+        if light_theme:
+            return icon_black_muted if muted else icon_black_unmuted
+        return icon_white_muted if muted else icon_white_unmuted
+
+    # Initialize tray icon
     tray = QSystemTrayIcon()
     current_mute_state = audio.get_mute_state()
     is_light_theme = is_system_light_theme()
-    
-    # OSD Initialization
-    # We use white icons for the OSD as it has a dark background
-    osd = MetroOSD(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
-    osd.set_config(audio.osd_config)
-    
-    # Persistent Overlay Initialization
-    # FIX: Pass current_mute_state to overlay.set_config() so it knows the actual mute state
-    # during startup initialization. Also pass audio.device_id as fallback.
-    overlay = StatusOverlay(SVG_WHITE_UNMUTED, SVG_WHITE_MUTED)
-    overlay.set_config(audio.persistent_overlay, initial_mute_state=current_mute_state)
-    # Set fallback device: if overlay config doesn't specify a device, use the app's current device
-    overlay.set_target_device(audio.persistent_overlay.get('device_id'), fallback_device_id=audio.device_id)
-    overlay.config_changed.connect(audio.update_persistent_overlay)
-    
-    def get_current_icon(muted, light_theme):
-        """
-        Determines the appropriate icon based on mute state and theme.
-        
-        Args:
-            muted (bool): Current mute state.
-            light_theme (bool): True if system is in light mode.
-            
-        Returns:
-            QIcon: The appropriate QIcon object.
-        """
-        if light_theme: return icon_black_muted if muted else icon_black_unmuted
-        else: return icon_white_muted if muted else icon_white_unmuted
 
     tray.setIcon(get_current_icon(current_mute_state, is_light_theme))
     tray.setToolTip(f"MicMute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
-    
+
+    # OSD Initialization
+    osd = MetroOSD(svg_white_unmuted, svg_white_muted)
+    osd.set_config(audio.osd_config)
+
+    # Persistent Overlay Initialization
+    overlay = StatusOverlay(svg_white_unmuted, svg_white_muted)
+    overlay.set_config(audio.persistent_overlay, initial_mute_state=current_mute_state)
+    overlay.set_target_device(
+        audio.persistent_overlay.get("device_id"),
+        fallback_device_id=audio.device_id,
+    )
+    overlay.config_changed.connect(audio.update_persistent_overlay)
+
     # Listeners
     theme_listener = ThemeListener()
-    
+
     # Input Manager (Hooks)
     input_manager = InputManager()
     input_manager.start()
-    
-    # Menu Functions
-    # Dialog Instances
-    dialogs = {'settings': None}
 
-    def populate_devices_menu():
-        """
-        Populates the device selection submenu with available microphones.
+    # Dialog Instances
+    dialogs: dict[str, QDialog | None] = {"settings": None}
+
+    def populate_devices_menu(menu: QMenu, submenu_devices: QMenu) -> None:
+        """Populate the device selection submenu with available microphones.
+
+        Args:
+            menu: The parent menu.
+            submenu_devices: The submenu to populate.
         """
         submenu_devices.clear()
-        
+
         try:
             # Get All Devices
             all_devices_raw = AudioUtilities.GetAllDevices()
             enumerator = AudioUtilities.GetDeviceEnumerator()
-            # eCapture, eAll
-            collection = enumerator.EnumAudioEndpoints(1, 1)
+            collection = enumerator.EnumAudioEndpoints(1, 1)  # eCapture, eAll
             count = collection.GetCount()
-            capture_ids = set()
+            capture_ids: set[str] = set()
             for i in range(count):
                 dev = collection.Item(i)
                 capture_ids.add(dev.GetId())
-            
+
             # Filter and Sort
-            devices = []
-            for dev in all_devices_raw:
-                if dev.id in capture_ids:
-                    devices.append(dev)
-            
-            # Current Master ID
+            devices = [dev for dev in all_devices_raw if dev.id in capture_ids]
             current_id = audio.device_id
-            
+
             for dev in devices:
                 name = dev.FriendlyName
                 dev_id = dev.id
-                
+
                 action = QAction(name, menu)
                 action.setCheckable(True)
                 action.setChecked(dev_id == current_id)
-                
-                # Handler
-                def on_triggered(checked, d_id=dev_id):
+
+                def on_triggered(checked: bool, d_id: str = dev_id) -> None:
                     if set_default_device(d_id):
                         if audio.set_device_by_id(d_id):
-                            tray.showMessage("Success", f"Switched to: {name}", QSystemTrayIcon.Information, 2000)
+                            tray.showMessage(
+                                "Success",
+                                f"Switched to: {name}",
+                                QSystemTrayIcon.Information,
+                                2000,
+                            )
                             overlay.set_target_device(d_id)
                         else:
-                            tray.showMessage("Error", "Failed to set application device.", QSystemTrayIcon.Warning, 2000)
+                            tray.showMessage(
+                                "Error",
+                                "Failed to set application device.",
+                                QSystemTrayIcon.Warning,
+                                2000,
+                            )
                     else:
-                        tray.showMessage("Error", "Failed to set Windows default.", QSystemTrayIcon.Warning, 2000)
-                
+                        tray.showMessage(
+                            "Error",
+                            "Failed to set Windows default.",
+                            QSystemTrayIcon.Warning,
+                            2000,
+                        )
+
                 action.triggered.connect(lambda checked, d_id=dev_id: on_triggered(checked, d_id))
                 submenu_devices.addAction(action)
-                
+
         except Exception as e:
             print(f"Error populating menu: {e}")
             error_action = QAction("Error loading devices", menu)
             error_action.setEnabled(False)
             submenu_devices.addAction(error_action)
 
-    def show_settings_dialog():
-        """
-        Displays the settings dialog, initializing it if necessary.
-        """
+    def show_settings_dialog() -> None:
+        """Display the settings dialog, initializing it if necessary."""
         try:
-            if dialogs['settings'] and dialogs['settings'].isVisible():
-                dialogs['settings'].activateWindow()
-                dialogs['settings'].raise_()
+            if dialogs["settings"] and dialogs["settings"].isVisible():
+                dialogs["settings"].activateWindow()
+                dialogs["settings"].raise_()
                 return
         except RuntimeError:
-            # Object deleted but reference remains
-            dialogs['settings'] = None
+            dialogs["settings"] = None
 
-        # Pass hook_thread instead of raw hook
         dialog = SettingsDialog(audio, input_manager.hook_thread)
-        dialogs['settings'] = dialog
-        
-        def apply_updates():
-            """Applies configuration changes to OSD and Overlay."""
+        dialogs["settings"] = dialog
+
+        def apply_updates() -> None:
+            """Apply configuration changes to OSD and Overlay."""
             osd.set_config(audio.osd_config)
             overlay.set_config(audio.persistent_overlay)
-            
+
             # Sync Tray Menu Checkboxes
             action_sound.setChecked(audio.beep_enabled)
-            action_osd.setChecked(audio.osd_config.get('enabled', False))
-            action_overlay.setChecked(audio.persistent_overlay.get('enabled', False))
-        
+            action_osd.setChecked(audio.osd_config.get("enabled", False))
+            action_overlay.setChecked(audio.persistent_overlay.get("enabled", False))
+
         dialog.settings_applied.connect(apply_updates)
-        
-        def on_settings_finished(result):
-            # Explicit Cleanup
-            dialogs['settings'] = None
-            # Schedule C++ deletion
+
+        def on_settings_finished(result: int) -> None:
+            """Handle dialog close."""
+            dialogs["settings"] = None
             dialog.deleteLater()
-            # Force Python GC
             gc.collect()
 
         dialog.finished.connect(on_settings_finished)
         dialog.show()
 
     # Toggle Handlers
-    def toggle_beep_setting(checked):
+    def toggle_beep_setting(checked: bool) -> None:
+        """Toggle beep sound setting."""
         audio.set_beep_enabled(checked)
 
-    def toggle_osd_setting(checked):
-        # Update config and save
+    def toggle_osd_setting(checked: bool) -> None:
+        """Toggle OSD notification setting."""
         new_config = audio.osd_config.copy()
-        new_config['enabled'] = checked
+        new_config["enabled"] = checked
         audio.update_osd_config(new_config)
-        # Force OSD hide if disabled
         if not checked:
             osd.hide()
 
-    def toggle_overlay_setting(checked):
-        # Update config and save
+    def toggle_overlay_setting(checked: bool) -> None:
+        """Toggle persistent overlay setting."""
         new_config = audio.persistent_overlay.copy()
-        new_config['enabled'] = checked
+        new_config["enabled"] = checked
         audio.update_persistent_overlay(new_config)
-        # Overlay handles its own visibility in set_config
         overlay.set_config(new_config)
 
+    # Build Menu
     menu = QMenu()
-    
+
     # Select Device Submenu
     submenu_devices = QMenu("Select Microphone", menu)
-    submenu_devices.aboutToShow.connect(populate_devices_menu)
+    submenu_devices.aboutToShow.connect(lambda: populate_devices_menu(menu, submenu_devices))
     menu.addMenu(submenu_devices)
-    
+
     menu.addSeparator()
-    
+
     # Sound Toggle
     action_sound = QAction("Play Sound on Toggle")
     action_sound.setCheckable(True)
     action_sound.setChecked(audio.beep_enabled)
     action_sound.triggered.connect(toggle_beep_setting)
     menu.addAction(action_sound)
-    
+
     # OSD Toggle
     action_osd = QAction("Enable OSD Notification")
     action_osd.setCheckable(True)
-    action_osd.setChecked(audio.osd_config.get('enabled', False))
+    action_osd.setChecked(audio.osd_config.get("enabled", False))
     action_osd.triggered.connect(toggle_osd_setting)
     menu.addAction(action_osd)
-    
+
     # Overlay Toggle
     action_overlay = QAction("Show Persistent Overlay")
     action_overlay.setCheckable(True)
-    action_overlay.setChecked(audio.persistent_overlay.get('enabled', False))
+    action_overlay.setChecked(audio.persistent_overlay.get("enabled", False))
     action_overlay.triggered.connect(toggle_overlay_setting)
     menu.addAction(action_overlay)
 
@@ -248,69 +347,72 @@ def main():
     action_startup = QAction("Start on Boot")
     action_startup.setCheckable(True)
     action_startup.setChecked(get_run_on_startup())
-    
-    def toggle_startup(checked):
-        set_run_on_startup(checked)
-        
-    action_startup.triggered.connect(toggle_startup)
+    action_startup.triggered.connect(set_run_on_startup)
     menu.addAction(action_startup)
-    
+
     menu.addSeparator()
 
     # Settings
     action_settings = QAction("Settings")
     action_settings.triggered.connect(show_settings_dialog)
     menu.addAction(action_settings)
-    
+
     # Help
     action_help = QAction("Help")
-    action_help.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/madbeat14/MicMute#readme")))
+    action_help.triggered.connect(
+        lambda: QDesktopServices.openUrl(
+            QUrl("https://github.com/madbeat14/MicMute#readme")
+        )
+    )
     menu.addAction(action_help)
-    
+
     # About
     action_about = QAction("About")
-    
-    def show_about():
+
+    def show_about() -> None:
+        """Show the about dialog."""
         QMessageBox.about(
             None,
             "About MicMute",
             f"<b>MicMute v{VERSION}</b><br><br>"
             "Author: madbeat14<br>"
-            "A lightweight, non-intrusive microphone mute toggle application with native hooks and overlay."
+            "A lightweight, non-intrusive microphone mute toggle application "
+            "with native hooks and overlay.",
         )
-        
+
     action_about.triggered.connect(show_about)
     menu.addAction(action_about)
-    
+
     menu.addSeparator()
-    
+
     # Exit
     action_exit = QAction("Exit")
     action_exit.triggered.connect(app.quit)
     menu.addAction(action_exit)
-    
+
     tray.setContextMenu(menu)
     tray.show()
 
     # Updates
-    def update_tray_state(is_muted=None):
-        """
-        Updates the tray icon and tooltip based on the current state.
-        
+    def update_tray_state(is_muted: bool | None = None) -> None:
+        """Update the tray icon and tooltip based on the current state.
+
         Args:
-            is_muted (bool, optional): The new mute state. If None, uses current state.
+            is_muted: The new mute state. If None, uses current state.
         """
         nonlocal current_mute_state, is_light_theme
-        if is_muted is not None: current_mute_state = is_muted
+        if is_muted is not None:
+            current_mute_state = is_muted
         new_theme = is_system_light_theme()
         if is_muted is not None or new_theme != is_light_theme:
             is_light_theme = new_theme
             tray.setIcon(get_current_icon(current_mute_state, is_light_theme))
-            tray.setToolTip(f"MicMute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}")
-        
-        # Trigger OSD if muted state changed
+            tray.setToolTip(
+                f"MicMute v{VERSION} - {'MUTED' if current_mute_state else 'UNMUTED'}"
+            )
+
         if is_muted is not None:
-            if audio.osd_config.get('enabled', False):
+            if audio.osd_config.get("enabled", False):
                 osd.show_osd(is_muted)
             overlay.update_status(is_muted)
 
@@ -319,62 +421,53 @@ def main():
     signals.toggle_mute.connect(audio.toggle_mute)
     signals.set_mute.connect(audio.set_mute_state)
     signals.exit_app.connect(app.quit)
-    
-    # --- INITIAL SYNC ---
-    # FIX: Ensure overlay mute state is synchronized before triggering update_tray_state
-    # which would call overlay.update_status(). This prevents the overlay from having
-    # stale mute state on startup.
+
+    # Initial sync
     overlay.is_muted = current_mute_state
-    
-    # Push the initial state to all listeners (Tray, OSD, Overlay)
     update_tray_state(current_mute_state)
-    
-    def on_device_changed(new_id):
-        """
-        Handles changes to the default audio device.
-        
+
+    def on_device_changed(new_id: str) -> None:
+        """Handle changes to the default audio device.
+
         Args:
-            new_id (str): The ID of the new default device.
+            new_id: The ID of the new default device.
         """
         print(f"Default Device Changed: {new_id}")
-        # Automatically switch to the new default device
         if audio.set_device_by_id(new_id):
-            # Update Overlay target
             overlay.set_target_device(new_id)
-            # Show notification
-            tray.showMessage("Device Changed", "Switched to new default microphone.", QSystemTrayIcon.Information, 2000)
-            
+            tray.showMessage(
+                "Device Changed",
+                "Switched to new default microphone.",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+
     signals.device_changed.connect(on_device_changed)
 
-    def on_setting_changed(key, value):
+    def on_setting_changed(key: str, value: Any) -> None:
+        """Handle setting changes from other parts of the app.
+
+        Args:
+            key: The setting key.
+            value: The new setting value.
         """
-        Handles setting changes from other parts of the app (e.g. Settings Dialog).
-        Updates tray menu checkmarks to match.
-        """
-        # Block signals to prevent feedback loop? 
-        # Actually, QAction.setChecked emits triggered? No, usually toggled.
-        # But our triggered handlers call audio.set_*, which emits setting_changed.
-        # So we MUST block signals on the actions while setting them.
-        
-        if key == 'beep_enabled':
+        if key == "beep_enabled":
             action_sound.blockSignals(True)
             action_sound.setChecked(value)
             action_sound.blockSignals(False)
-        elif key == 'osd':
+        elif key == "osd":
             action_osd.blockSignals(True)
-            action_osd.setChecked(value.get('enabled', False))
+            action_osd.setChecked(value.get("enabled", False))
             action_osd.blockSignals(False)
-            # Live Update OSD
             osd.set_config(value)
-        elif key == 'persistent_overlay':
+        elif key == "persistent_overlay":
             action_overlay.blockSignals(True)
-            action_overlay.setChecked(value.get('enabled', False))
+            action_overlay.setChecked(value.get("enabled", False))
             action_overlay.blockSignals(False)
-            # Live Update Overlay
-            # Note: When toggling from settings, we don't pass initial_mute_state
-            # because current mute state is already known to the overlay
             overlay.set_config(value)
-            overlay.set_target_device(value.get('device_id'), fallback_device_id=audio.device_id)
+            overlay.set_target_device(
+                value.get("device_id"), fallback_device_id=audio.device_id
+            )
 
     signals.setting_changed.connect(on_setting_changed)
 
@@ -382,72 +475,45 @@ def main():
     afk_timer = QTimer()
     afk_timer.setSingleShot(True)
 
-    def schedule_afk_check():
-        """
-        Schedules the next AFK check based on the configured timeout.
-        """
-        if not audio.afk_config.get('enabled', False):
+    def schedule_afk_check() -> None:
+        """Schedule the next AFK check based on the configured timeout."""
+        if not audio.afk_config.get("enabled", False):
             afk_timer.stop()
             return
 
-        timeout = audio.afk_config.get('timeout', 60)
+        timeout = audio.afk_config.get("timeout", 60)
         idle_time = get_idle_duration()
-        
-        # Calculate time remaining until timeout
         remaining = timeout - idle_time
-        
+
         if remaining <= 0:
-            # Timeout reached
             if not audio.get_mute_state():
                 print(f"AFK Detected ({idle_time:.1f}s). Muting...")
                 audio.toggle_mute()
-            # Check again in a while (e.g. 1 second) to see if user returns or to keep monitoring
             next_interval = 1000
         else:
-            # Wait for the remaining time, plus a small buffer (100ms)
-            # But don't wait too long in case config changes (though config changes trigger re-schedule)
-            # Cap at 5 minutes to be safe, or just trust the math.
-            # Let's use the exact remaining time.
             next_interval = int(remaining * 1000) + 100
-            
-            # Sanity check: never poll faster than 1s unless very close
-            if next_interval < 1000: next_interval = 1000
+            if next_interval < 1000:
+                next_interval = 1000
 
         afk_timer.start(next_interval)
 
-    def on_afk_config_changed(new_config):
-        """
-        Callback for when AFK configuration changes.
-        
-        Args:
-            new_config (dict): The new AFK configuration.
-        """
-        # Re-evaluate timer when config changes
-        schedule_afk_check()
-
-    # Hook into config changes (we need to add a signal for this in core.py or just poll less aggressively)
-    # For now, we'll just start the loop. Ideally `audio` would emit signal on config change.
-    # Since we don't have a specific signal for AFK config change in AudioController yet, 
-    # we will rely on the loop self-correcting or add a signal later.
-    # Actually, let's just start it.
-    
     afk_timer.timeout.connect(schedule_afk_check)
     schedule_afk_check()
 
-    # --- HIGH PRIORITY ---
-    # Set process priority to High to prevent hook timeouts during gaming
+    # High Priority
     set_high_priority()
 
-    print(f"\n{'='*50}")
-    print(f"  Microphone Mute Toggle v{VERSION} (Refactored)")
+    print(f"\n{'=' * 50}")
+    print(f"  Microphone Mute Toggle v{VERSION} (Optimized)")
     print(f"  Mode: Non-Admin | Native Hooks | Fully Configurable")
-    print(f"{'='*50}")
-    print("✓ Ready! Use tray icon to configure.")
+    print(f"{'=' * 50}")
+    print("Ready! Use tray icon to configure.")
 
     try:
-        sys.exit(app.exec())
+        return app.exec()
     finally:
         input_manager.stop()
 
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
