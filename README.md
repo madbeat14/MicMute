@@ -54,30 +54,37 @@ python run.py
 
 ## Building the Executable
 
-### Reproducible Build (Recommended)
-This uses the locked dependency versions from `uv.lock` for consistent builds:
+### Option 1: One-Command Build (Recommended)
+Generates spec and builds in one step:
 
 ```bash
-# 1. Sync dependencies from lockfile
-uv sync
+python build_exe_full.py
+```
 
-# 2. Generate spec file for your environment
+### Option 2: Separate Steps
+If you need to customize the spec file before building:
+
+```bash
+# 1. Generate spec file for your environment
 python generate_spec.py
 
-# 3. Build the executable
+# 2. Build the executable (uses existing spec)
 python build_exe.py
+```
+
+### Option 3: Full Developer Build
+Upgrades all dependencies and rebuilds everything:
+
+```bash
+python dev_build.py
 ```
 
 The executable will be generated in `dist/MicMute.exe`.
 
-### Quick Build (if dependencies already installed)
-```bash
-python generate_spec.py && python build_exe.py
-```
-
 ## Project Structure
 - `src/MicMute`: Source code package.
 - `run.py`: Entry point for running from source.
-- `build_exe.py`: Script to build the standalone executable.
+- `build_exe.py`: Build executable (assumes spec already exists).
+- `build_exe_full.py`: Generate spec + build executable in one step.
 - `generate_spec.py`: Generates PyInstaller spec file with correct paths.
 - `dev_build.py`: Developer script for upgrade + build (maintainer use only).

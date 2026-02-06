@@ -16,18 +16,18 @@ os.chdir(BASE_DIR)
 def run_cmd(cmd, description):
     """Run a command and handle errors."""
     print(f"\n{'='*50}")
-    print(f"→ {description}")
+    print(f"-> {description}")
     print(f"{'='*50}")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0:
-        print(f"✗ FAILED: {description}")
+        print(f"[FAILED] {description}")
         sys.exit(1)
-    print(f"✓ {description}")
+    print(f"[OK] {description}")
     return result
 
 def check_uv():
     """Check if uv is available, try to install if not."""
-    print("\n→ Checking for uv...")
+    print("\n-> Checking for uv...")
     
     # Try running uv via python module
     result = subprocess.run(
@@ -37,29 +37,29 @@ def check_uv():
     )
     
     if result.returncode == 0:
-        print(f"✓ uv found: {result.stdout.strip()}")
+        print(f"[OK] uv found: {result.stdout.strip()}")
         return True
     
     # Try installing uv
-    print("⚠ uv not found, attempting to install...")
+    print("[!] uv not found, attempting to install...")
     install_result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "--upgrade", "uv"],
         capture_output=True
     )
     
     if install_result.returncode == 0:
-        print("✓ uv installed successfully")
+        print("[OK] uv installed successfully")
         return True
     
-    print("✗ Failed to install uv. Please install manually: pip install uv")
+    print("[ERROR] Failed to install uv. Please install manually: pip install uv")
     sys.exit(1)
 
 def main():
     print("""
-╔══════════════════════════════════════════════════╗
-║          MicMute Developer Build Script          ║
-║      Upgrade → Sync → Lock → Generate → Build    ║
-╚══════════════════════════════════════════════════╝
+==================================================
+          MicMute Developer Build Script
+      Upgrade -> Sync -> Lock -> Generate -> Build
+==================================================
     """)
     
     # Check uv
@@ -80,12 +80,12 @@ def main():
     # Step 4: Build executable
     run_cmd(f'"{sys.executable}" build_exe.py', "Building executable")
     
-    print(f"""
-╔══════════════════════════════════════════════════╗
-║              BUILD COMPLETE! ✓                   ║
-╠══════════════════════════════════════════════════╣
-║  Output: dist/MicMute.exe                        ║
-╚══════════════════════════════════════════════════╝
+    print("""
+==================================================
+              BUILD COMPLETE!
+==================================================
+  Output: dist/MicMute.exe
+==================================================
     """)
 
 if __name__ == "__main__":
