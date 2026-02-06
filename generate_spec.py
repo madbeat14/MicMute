@@ -13,27 +13,48 @@ from pathlib import Path
 
 
 def get_version() -> str:
-    """Get the current version from the package.
+    """Get the current version from git tags.
+
+    Uses git describe to get the version from the latest tag.
+    Falls back to _version.py or unknown if git is not available.
 
     Returns:
         The version string.
     """
-    # Add src to path to import the package
-    src_dir = Path(__file__).parent / "src"
-    sys.path.insert(0, str(src_dir))
+    import subprocess
 
+    # Try to get version from git describe
     try:
-        from MicMute import __version__
-        return __version__
-    except ImportError:
-        # Try to get from _version.py if it exists
-        version_file = src_dir / "MicMute" / "_version.py"
-        if version_file.exists():
-            with open(version_file) as f:
-                for line in f:
-                    if line.startswith("__version__"):
-                        return line.split("=")[1].strip().strip('"\'')
-        return "0.0.0+unknown"
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--long"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent,
+        )
+        if result.returncode == 0:
+            # Parse "v2.13.11-0-gabc1234" -> "2.13.11"
+            describe = result.stdout.strip()
+            if "-0-" in describe:
+                # We're exactly on a tag
+                version = describe.split("-")[0].lstrip("v")
+                return version
+            else:
+                # We're ahead of a tag, use the tag part
+                version = describe.split("-")[0].lstrip("v")
+                return version
+    except Exception:
+        pass
+
+    # Fallback to _version.py if it exists
+    src_dir = Path(__file__).parent / "src"
+    version_file = src_dir / "MicMute" / "_version.py"
+    if version_file.exists():
+        with open(version_file) as f:
+            for line in f:
+                if line.startswith("__version__"):
+                    return line.split("=")[1].strip().strip('"\'')
+
+    return "0.0.0+unknown"
 
 
 def parse_version_info(version: str) -> tuple[int, int, int, int, str]:
