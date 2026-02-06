@@ -37,6 +37,7 @@ dev = [
     "mypy>=1.11.0",
     "pytest>=8.0.0",
     "pytest-qt>=4.0.0",
+    "pyinstaller>=6.0.0",
 ]
 
 [project.gui-scripts]
