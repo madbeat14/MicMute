@@ -734,7 +734,8 @@ class OverlaySettingsWidget(QWidget):
             'opacity': self.opacity_slider.value(),
             'sensitivity': self.sens_slider.value(),
             'x': self.audio.persistent_overlay.get('x', 100),
-            'y': self.audio.persistent_overlay.get('y', 100)
+            'y': self.audio.persistent_overlay.get('y', 100),
+            'device_id': self.audio.persistent_overlay.get('device_id'),
         }
         self.audio.update_persistent_overlay(new_config)
 
@@ -768,7 +769,8 @@ class OverlaySettingsWidget(QWidget):
             'opacity': self.opacity_slider.value(),
             'sensitivity': self.sens_slider.value(),
             'x': self.audio.persistent_overlay.get('x', 100),
-            'y': self.audio.persistent_overlay.get('y', 100)
+            'y': self.audio.persistent_overlay.get('y', 100),
+            'device_id': self.audio.persistent_overlay.get('device_id'),
         }
 
     def cleanup(self):

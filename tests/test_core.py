@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 # Import core normally.
 # The module-level 'audio' object will be created.
 # We hope it doesn't crash or block.
-from MicMute.core import AudioController, CONFIG_FILE
+from MicMute.core import AudioController
+from MicMute.config import CONFIG_FILE
 import MicMute.core
 
 @pytest.fixture
@@ -17,9 +18,10 @@ def mock_audio_utilities():
 
 @pytest.fixture
 def audio_controller():
-    # Create a fresh instance for testing, patching out side effects
-    with patch("MicMute.core.AudioController.load_config"), \
-         patch("MicMute.core.AudioController.start_device_watcher"):
+    # Create a fresh instance for testing, patching out side effects.
+    # AudioController delegates config loading to ConfigManager, so we
+    # patch ConfigManager.load_config to avoid file I/O during tests.
+    with patch("MicMute.config.ConfigManager.load_config"):
         controller = AudioController()
         # Set defaults
         controller.beep_enabled = True
@@ -33,23 +35,21 @@ def test_init_defaults(audio_controller):
     assert audio_controller.device_id is None
 
 def test_load_config(audio_controller):
+    """Test that loading config updates AudioController's properties via config_manager."""
     config_data = {
         "device_id": "{some-guid}",
         "beep_enabled": False,
         "sync_ids": ["{slave-guid}"],
         "hotkey": {"mode": "separate", "mute": {"vk": 65}, "unmute": {"vk": 66}}
     }
-    
-    with patch("builtins.open", new_callable=MagicMock) as mock_open:
-        mock_file = MagicMock()
-        mock_file.__enter__.return_value = mock_file
-        mock_file.read.return_value = json.dumps(config_data)
-        mock_open.return_value = mock_file
-        
-        with patch("os.path.exists", return_value=True):
-            with patch("json.load", return_value=config_data):
-                audio_controller.load_config()
-    
+
+    # AudioController delegates config loading to self.config_manager.
+    # Patch Path.exists so the config file is "found", then json.load returns our data.
+    with patch("pathlib.Path.exists", return_value=True), \
+         patch("json.load", return_value=config_data), \
+         patch("builtins.open", MagicMock()):
+        audio_controller.config_manager.load_config()
+
     assert audio_controller.device_id == "{some-guid}"
     assert audio_controller.beep_enabled is False
 
@@ -59,7 +59,7 @@ def test_save_config(audio_controller):
     with patch("builtins.open", new_callable=MagicMock) as mock_open:
         with patch("json.dump") as mock_json_dump:
             audio_controller.save_config()
-            mock_open.assert_called_with(CONFIG_FILE, 'w')
+            mock_open.assert_called_with(CONFIG_FILE, 'w', encoding='utf-8')
             args, _ = mock_json_dump.call_args
             assert args[0]['device_id'] == "{test-guid}"
 
@@ -69,10 +69,13 @@ def test_find_device_saved_found(audio_controller, mock_audio_utilities):
     mock_dev = MagicMock()
     mock_dev.id = "{saved-id}"
     mock_dev.FriendlyName = "Saved Mic"
+    mock_dev.EndpointVolume = MagicMock()
     
     mock_audio_utilities.GetAllDevices.return_value = [mock_dev]
     
-    assert audio_controller.find_device() is True
+    with patch("MicMute.core.signals.update_icon"):
+        result = audio_controller.find_device()
+    assert result is True
     assert audio_controller.device == mock_dev
 
 def test_toggle_mute(audio_controller):

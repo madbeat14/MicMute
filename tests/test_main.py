@@ -15,7 +15,8 @@ with patch.dict(sys.modules, {
 
 def test_audio_controller_init():
     """Test that AudioController initializes with default values."""
-    with patch("MicMute.core.AudioController.load_config"): # Prevent loading real config
+    # AudioController delegates config loading to ConfigManager.load_config
+    with patch("MicMute.config.ConfigManager.load_config"):
         audio = AudioController()
         assert audio.beep_enabled is True
         # Updated structure check

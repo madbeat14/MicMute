@@ -37,11 +37,8 @@ def mock_hook():
 
 def test_settings_dialog_init(qapp, mock_audio, mock_hook):
     """Test that SettingsDialog initializes without error."""
-    # Use patch.object to be absolutely sure we are patching the right thing
-    # Also patch global audio object used by DeviceSelectionWidget
-    with patch.object(MicMute.gui, "AudioUtilities") as mock_au, \
-         patch.object(MicMute.gui, "audio", mock_audio):
-        
+    # AudioUtilities is used in gui.devices (DeviceSelectionWidget), not the gui package root
+    with patch("MicMute.gui.devices.AudioUtilities") as mock_au:
         mock_au.GetAllDevices.return_value = []
         mock_au.GetDeviceEnumerator.return_value = MagicMock()
         
@@ -51,11 +48,8 @@ def test_settings_dialog_init(qapp, mock_audio, mock_hook):
 
 def test_device_selection_widget(qapp, mock_audio):
     """Test device selection widget population."""
-    # Patch AudioUtilities in gui module
-    # AND patch the global 'audio' object in gui module because DeviceSelectionWidget uses it
-    with patch.object(MicMute.gui, "AudioUtilities") as mock_au, \
-         patch.object(MicMute.gui, "audio", mock_audio):
-        
+    # AudioUtilities is used in MicMute.gui.devices, not the gui package root
+    with patch("MicMute.gui.devices.AudioUtilities") as mock_au:
         # Mock devices
         dev1 = MagicMock()
         dev1.id = "{id1}"
@@ -119,10 +113,12 @@ def test_afk_settings_widget(qapp, mock_audio):
 def test_osd_settings_widget(qapp, mock_audio):
     """Test OSD settings widget."""
     from MicMute.gui import OsdSettingsWidget
-    mock_audio.osd_config = {'enabled': True, 'size': 200, 'duration': 1000, 'position': 'Top-Left'}
+    mock_audio.osd_config = {'enabled': True, 'size': 200, 'duration': 1000, 'position': 'Top-Center', 'opacity': 80}
     
     widget = OsdSettingsWidget(mock_audio)
     
     assert widget.enabled_cb.isChecked() is True
-    assert widget.size_spin.value() == 200
-    assert widget.position_combo.currentText() == 'Top-Left'
+    # OsdSettingsWidget uses px_spin (not size_spin) for size
+    assert widget.px_spin.value() == 200
+    # pos_combo maps 'Top-Center' -> 'Top'
+    assert widget.pos_combo.currentText() == 'Top'
