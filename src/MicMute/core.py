@@ -9,38 +9,17 @@ from __future__ import annotations
 
 import gc
 import threading
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 from winsound import Beep
 
 from PySide6.QtCore import QObject, Signal, QUrl
 from PySide6.QtMultimedia import QSoundEffect
 from pycaw.pycaw import AudioUtilities
 
-from .config import ConfigManager
+from .config import ConfigManager, BeepConfig, SoundConfig, HotkeyConfig
+from .utils import get_internal_asset, get_external_sound_dir
 
 __all__ = ["MuteSignals", "AudioController", "signals", "audio"]
-
-
-class BeepConfig(TypedDict):
-    """Configuration for beep sounds."""
-
-    freq: int
-    duration: int
-    count: int
-
-
-class SoundConfig(TypedDict):
-    """Configuration for custom sound files."""
-
-    file: str
-    volume: int
-
-
-class HotkeyConfig(TypedDict):
-    """Configuration for hotkey assignments."""
-
-    vk: int
-    name: str
 
 
 class MuteSignals(QObject):
@@ -237,15 +216,25 @@ class AudioController:
         """Save current application settings to the JSON configuration file."""
         self.config_manager.save_config()
 
+    def _update_and_save(self, attr: str, signal_key: str, value: Any) -> None:
+        """Update a config attribute, save to disk, and emit a signal.
+
+        Args:
+            attr: The attribute name on self (e.g. 'beep_config').
+            signal_key: The key string to emit via setting_changed signal.
+            value: The new value.
+        """
+        setattr(self, attr, value)
+        self.save_config()
+        signals.setting_changed.emit(signal_key, value)
+
     def set_beep_enabled(self, enabled: bool) -> None:
         """Enable or disable the beep sound effect.
 
         Args:
             enabled: True to enable, False to disable.
         """
-        self.beep_enabled = enabled
-        self.save_config()
-        signals.setting_changed.emit("beep_enabled", enabled)
+        self._update_and_save("beep_enabled", "beep_enabled", enabled)
 
     def update_audio_mode(self, mode: str) -> None:
         """Update the audio feedback mode.
@@ -258,9 +247,7 @@ class AudioController:
         """
         if mode not in ("beep", "custom"):
             raise ValueError(f"Invalid audio mode: {mode}. Must be 'beep' or 'custom'.")
-        self.audio_mode = mode
-        self.save_config()
-        signals.setting_changed.emit("audio_mode", mode)
+        self._update_and_save("audio_mode", "audio_mode", mode)
 
     def update_beep_config(self, new_config: dict[str, BeepConfig]) -> None:
         """Update the configuration for beep sounds.
@@ -268,9 +255,7 @@ class AudioController:
         Args:
             new_config: New beep configuration dictionary.
         """
-        self.beep_config = new_config
-        self.save_config()
-        signals.setting_changed.emit("beep_config", new_config)
+        self._update_and_save("beep_config", "beep_config", new_config)
 
     def update_hotkey_config(self, new_config: dict[str, Any]) -> None:
         """Update the global hotkey configuration.
@@ -278,9 +263,7 @@ class AudioController:
         Args:
             new_config: New hotkey configuration dictionary.
         """
-        self.hotkey_config = new_config
-        self.save_config()
-        signals.setting_changed.emit("hotkey", new_config)
+        self._update_and_save("hotkey_config", "hotkey", new_config)
 
     def update_afk_config(self, new_config: dict[str, Any]) -> None:
         """Update the AFK (Away From Keyboard) feature configuration.
@@ -288,9 +271,7 @@ class AudioController:
         Args:
             new_config: New AFK configuration dictionary.
         """
-        self.afk_config = new_config
-        self.save_config()
-        signals.setting_changed.emit("afk", new_config)
+        self._update_and_save("afk_config", "afk", new_config)
 
     def update_osd_config(self, new_config: dict[str, Any]) -> None:
         """Update the On-Screen Display (OSD) configuration.
@@ -298,9 +279,7 @@ class AudioController:
         Args:
             new_config: New OSD configuration dictionary.
         """
-        self.osd_config = new_config
-        self.save_config()
-        signals.setting_changed.emit("osd", new_config)
+        self._update_and_save("osd_config", "osd", new_config)
 
     def update_persistent_overlay(self, new_config: dict[str, Any]) -> None:
         """Update the persistent overlay configuration.
@@ -308,9 +287,7 @@ class AudioController:
         Args:
             new_config: New overlay configuration dictionary.
         """
-        self.persistent_overlay = new_config
-        self.save_config()
-        signals.setting_changed.emit("persistent_overlay", new_config)
+        self._update_and_save("persistent_overlay", "persistent_overlay", new_config)
 
     def update_sync_ids(self, ids: list[str]) -> None:
         """Update the list of synchronized device IDs.
@@ -318,9 +295,7 @@ class AudioController:
         Args:
             ids: List of device IDs to sync with the main device.
         """
-        self.sync_ids = ids
-        self.save_config()
-        signals.setting_changed.emit("sync_ids", ids)
+        self._update_and_save("sync_ids", "sync_ids", ids)
 
     def find_device(self) -> bool:
         """Locate and initialize the target audio device.
@@ -399,19 +374,15 @@ class AudioController:
             if self.beep_enabled:
                 Beep(*self.BEEP_ERROR)
 
-    def set_device_mute(self, dev_id: str, state: bool) -> None:
-        """Helper to mute a specific device by ID.
+    def set_device_mute(self, dev: Any, state: bool) -> None:
+        """Mute a specific device object.
 
         Args:
-            dev_id: The ID of the device to mute.
+            dev: The pycaw device object.
             state: True to mute, False to unmute.
         """
         try:
-            all_devices = AudioUtilities.GetAllDevices()
-            for dev in all_devices:
-                if dev.id == dev_id:
-                    dev.EndpointVolume.SetMute(state, None)
-                    return
+            dev.EndpointVolume.SetMute(state, None)
         except Exception:
             pass
 
@@ -432,11 +403,17 @@ class AudioController:
                 sound_type = "mute" if new_state else "unmute"
                 self.play_sound(sound_type)
 
-            # Sync Slaves (Always force to match target state)
-            for slave_id in self.sync_ids:
-                # Avoid self
-                if slave_id != self.device_id:
-                    self.set_device_mute(slave_id, new_state)
+            # Sync Slaves (Enumerate once, then match)
+            if self.sync_ids:
+                sync_set = {sid for sid in self.sync_ids if sid != self.device_id}
+                if sync_set:
+                    try:
+                        all_devices = AudioUtilities.GetAllDevices()
+                        for dev in all_devices:
+                            if dev.id in sync_set:
+                                self.set_device_mute(dev, new_state)
+                    except Exception:
+                        pass
 
             # Emit signal AFTER syncing so UI reads correct states
             if current != new_state:
@@ -451,9 +428,7 @@ class AudioController:
         Args:
             new_config: New sound configuration dictionary.
         """
-        self.sound_config = new_config
-        self.save_config()
-        signals.setting_changed.emit("sound_config", new_config)
+        self._update_and_save("sound_config", "sound_config", new_config)
 
     def play_sound(self, sound_type: str) -> None:
         """Play custom sound if set, else fallback to beep.
@@ -487,7 +462,6 @@ class AudioController:
             return
 
         # Custom Mode Logic
-        from .utils import get_internal_asset, get_external_sound_dir
 
         sound_cfg = self.sound_config.get(sound_type, {})
         # Handle case where config might still be old string

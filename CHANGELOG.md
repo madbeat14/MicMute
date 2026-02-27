@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.13.12] - 2026-02-26
+### Performance
+- **Pixmap Caching**: `StatusOverlay` now caches `QIcon.pixmap()` results. Previously a new `QIcon` object was created on every mute toggle; now icons are rendered once and reused.
+- **Monotonic Timing**: Replaced `time.time()` with Qt's `QElapsedTimer` in `_force_topmost()` for a precise, syscall-free rate limiter.
+- **Device Enumeration**: `set_mute_state()` now enumerates all audio devices once and matches all synced slaves in a single pass instead of calling `GetAllDevices()` once per slave.
+- **Module-Level Imports**: Moved `get_internal_asset` / `get_external_sound_dir` from a per-call lazy import inside `play_sound()` to module-level in `core.py`.
+
+### Code Quality
+- **Deduplication**: Extracted `_update_and_save()` helper in `AudioController` — eliminates 7 nearly-identical `update_*_config` methods.
+- **Removed Duplicate TypedDicts**: `BeepConfig`, `SoundConfig`, `HotkeyConfig` were defined in both `core.py` and `config.py`. `core.py` now imports them from `config.py`.
+- **Resource Safety**: `audio_client` is now initialized to `None` in `StatusOverlay.__init__`, removing the `hasattr` guard in `stop_meter()`.
+- **Signal Cleanup**: Worker signals (`peak_detected`, `error_occurred`) are explicitly disconnected before the worker is stopped to prevent stale deliveries.
+- **Consolidated Cleanup**: `set_config()` disabled-state cleanup (hide, stop_meter, stop timers) merged into a single `else` branch.
+- **Dead Code**: Removed redundant `import os` inside `_setup_qt_environment()` (already imported at module level).
+
 ## [2.13.8] - 2026-02-01
 ### Improved
 - **Area-Specific Topmost Checking**: Overlay now only forces topmost when something is actually covering its screen area.

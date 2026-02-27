@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import ctypes
 import threading
-import time
 from typing import Any, ClassVar
 
 from PySide6.QtCore import (
@@ -16,6 +15,7 @@ from PySide6.QtCore import (
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
+    QElapsedTimer,
     QRect,
     Signal,
     Slot,
@@ -341,6 +341,9 @@ class StatusOverlay(QWidget):
         self.show_vu = False
         self.target_device_id: str | None = None
 
+        # Pixmap cache: keyed by (path, size) to avoid recreating QIcon every update
+        self._pixmap_cache: dict[tuple[str, int], QPixmap] = {}
+
         # Layout
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 10, 5)
@@ -376,10 +379,11 @@ class StatusOverlay(QWidget):
         # Audio Meter
         self.meter: Any | None = None
         self.meter_worker: AudioMeterWorker | None = None
+        self.audio_client: Any | None = None
 
         # Topmost Timer - Re-assert topmost position periodically
         self.topmost_timer = QTimer()
-        self.topmost_timer.setInterval(2000)
+        self.topmost_timer.setInterval(1000)
         self.topmost_timer.timeout.connect(self._force_topmost)
 
         # Visibility Monitor
@@ -387,7 +391,10 @@ class StatusOverlay(QWidget):
         self.visibility_timer.setInterval(3000)
         self.visibility_timer.timeout.connect(self._visibility_check)
         self._consecutive_hidden_count = 0
-        self._last_topmost_time = 0
+        # Monotonic timer for rate-limiting _force_topmost
+        self._topmost_elapsed = QElapsedTimer()
+        self._topmost_elapsed.start()
+        self._last_topmost_ms: int = 0
 
         self.resize(60, 40)
 
@@ -398,39 +405,40 @@ class StatusOverlay(QWidget):
         self.is_active = False
 
     def _force_topmost(self) -> None:
-        """Force the window to the topmost Z-order using Windows API.
+        """Force the window to the top of the TOPMOST Z-order using Windows API.
 
+        Always re-asserts topmost position so that other TOPMOST windows
+        (e.g. fullscreen apps, game overlays) cannot sit above this widget.
         Rate-limited to prevent GUI thread flooding.
         """
         if not self.isVisible():
             return
 
-        current_time = int(time.time() * 1000)
-        if current_time - self._last_topmost_time < 500:
+        current_ms = self._topmost_elapsed.elapsed()
+        if current_ms - self._last_topmost_ms < 500:
             return
-        self._last_topmost_time = current_time
+        self._last_topmost_ms = current_ms
 
         try:
             hwnd = int(self.winId())
             if hwnd == 0:
                 return
 
-            current_ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
-            WS_EX_TOPMOST = 0x00000008
-
-            if not (current_ex_style & WS_EX_TOPMOST):
-                ctypes.windll.user32.SetWindowPos(
-                    hwnd,
-                    self.HWND_TOPMOST,
-                    0,
-                    0,
-                    0,
-                    0,
-                    self.SWP_NOMOVE
-                    | self.SWP_NOSIZE
-                    | self.SWP_NOACTIVATE
-                    | self.SWP_SHOWWINDOW,
-                )
+            # Always call SetWindowPos to re-assert our position at the very
+            # top of the TOPMOST stack, even when WS_EX_TOPMOST is already set.
+            # Without this, other TOPMOST windows can appear above us.
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                self.HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                self.SWP_NOMOVE
+                | self.SWP_NOSIZE
+                | self.SWP_NOACTIVATE
+                | self.SWP_SHOWWINDOW,
+            )
         except Exception:
             pass
 
@@ -495,11 +503,6 @@ class StatusOverlay(QWidget):
         is_enabled = config.get("enabled", False)
         self.show_vu = config.get("show_vu", False)
 
-        if not is_enabled:
-            self.hide()
-            self.stop_meter()
-            self.topmost_timer.stop()
-
         self.set_target_device(config.get("device_id"))
 
         opacity = config.get("opacity", 80) / 100.0
@@ -522,8 +525,7 @@ class StatusOverlay(QWidget):
         self.icon_label.setFixedSize(icon_s, icon_s)
 
         path = self.icon_muted if self.is_muted else self.icon_unmuted
-        pixmap = QIcon(path).pixmap(icon_s, icon_s)
-        self.icon_label.setPixmap(pixmap)
+        self.icon_label.setPixmap(self._get_cached_pixmap(path, icon_s))
 
         self.position_mode = config.get("position_mode", "Custom")
         self.locked = config.get("locked", False)
@@ -546,6 +548,7 @@ class StatusOverlay(QWidget):
             self.visibility_timer.start()
             self.update_status(self.is_muted)
         else:
+            self.hide()
             self.stop_meter()
             self.topmost_timer.stop()
             self.visibility_timer.stop()
@@ -599,6 +602,21 @@ class StatusOverlay(QWidget):
 
         self.move(x, y)
 
+    def _get_cached_pixmap(self, path: str, size: int) -> QPixmap:
+        """Return a cached pixmap, creating it only if not already cached.
+
+        Args:
+            path: Path to the icon file.
+            size: Desired pixmap size in pixels.
+
+        Returns:
+            The cached QPixmap.
+        """
+        key = (path, size)
+        if key not in self._pixmap_cache:
+            self._pixmap_cache[key] = QIcon(path).pixmap(size, size)
+        return self._pixmap_cache[key]
+
     def update_status(self, is_muted: bool) -> None:
         """Update the visual status of the overlay.
 
@@ -609,8 +627,7 @@ class StatusOverlay(QWidget):
 
         path = self.icon_muted if is_muted else self.icon_unmuted
         size = getattr(self, "icon_size", 24)
-        pixmap = QIcon(path).pixmap(size, size)
-        self.icon_label.setPixmap(pixmap)
+        self.icon_label.setPixmap(self._get_cached_pixmap(path, size))
 
         is_enabled = self.current_config.get("enabled", False)
         should_run_meter = (not is_muted) and is_enabled and self.show_vu
@@ -687,12 +704,17 @@ class StatusOverlay(QWidget):
     def stop_meter(self) -> None:
         """Stop the audio meter and release resources."""
         if self.meter_worker:
+            try:
+                self.meter_worker.peak_detected.disconnect(self.on_peak_detected)
+                self.meter_worker.error_occurred.disconnect(self.stop_meter)
+            except (RuntimeError, TypeError):
+                pass  # Already disconnected
             self.meter_worker.stop()
             self.meter_worker = None
 
         self.meter = None
 
-        if hasattr(self, "audio_client") and self.audio_client:
+        if self.audio_client:
             try:
                 self.audio_client.Stop()
             except Exception:

@@ -99,7 +99,6 @@ def _setup_qt_environment() -> None:
     
     This prevents Qt from trying to write to protected directories.
     """
-    import os
     
     # Set Qt cache directory to AppData/Local
     if getattr(sys, "frozen", False):
