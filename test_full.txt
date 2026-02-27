@@ -1,0 +1,218 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\papop\Desktop\TaskScheduler\MicMute
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collected 36 items
+
+tests\test_core.py ......                                                [ 16%]
+tests\test_gui.py .....                                                  [ 30%]
+tests\test_main.py ..                                                    [ 36%]
+tests\test_overlay.py ..................                                 [ 86%]
+tests\test_sanity.py .                                                   [ 88%]
+tests\test_utils.py ....                                                 [100%]
+
+============================== warnings summary ===============================
+..\..\..\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\_pytest\config\__init__.py:1428
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\_pytest\config\__init__.py:1428: PytestConfigWarning: Unknown config option: qt_api
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 71 from device <POINTER(IMMDevice) ptr=0x23c94d06670 at 23c93c5ae50>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 72 from device <POINTER(IMMDevice) ptr=0x23c94d06670 at 23c93c5ae50>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 73 from device <POINTER(IMMDevice) ptr=0x23c94d06850 at 23c94c401a0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 74 from device <POINTER(IMMDevice) ptr=0x23c94d06850 at 23c94c401a0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 68 from device <POINTER(IMMDevice) ptr=0x23c94d05f90 at 23c95cb2e60>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 69 from device <POINTER(IMMDevice) ptr=0x23c94d05f90 at 23c95cb2e60>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94d072a0 at 23c94c9f380>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94d072a0 at 23c94c9f380>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94d07890 at 23c94c9f530>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94d07890 at 23c94c9f530>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94d07750 at 23c94c9f770>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 26 from device <POINTER(IMMDevice) ptr=0x23c94d07750 at 23c94c9f770>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94d077a0 at 23c94c9fb60>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94d077a0 at 23c94c9fb60>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 27 from device <POINTER(IMMDevice) ptr=0x23c94d07480 at 23c94c9fe30>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 28 from device <POINTER(IMMDevice) ptr=0x23c94d07480 at 23c94c9fe30>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 63 from device <POINTER(IMMDevice) ptr=0x23c94d072f0 at 23c95fd44d0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 64 from device <POINTER(IMMDevice) ptr=0x23c94d072f0 at 23c95fd44d0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 27 from device <POINTER(IMMDevice) ptr=0x23c94d07020 at 23c95fd4560>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 28 from device <POINTER(IMMDevice) ptr=0x23c94d07020 at 23c95fd4560>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94d07340 at 23c95fd4170>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94d07340 at 23c95fd4170>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 27 from device <POINTER(IMMDevice) ptr=0x23c94d079d0 at 23c95fd47a0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 28 from device <POINTER(IMMDevice) ptr=0x23c94d079d0 at 23c95fd47a0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_settings_dialog_init
+  C:\Users\papop\Desktop\TaskScheduler\MicMute\src\MicMute\gui\settings.py:388: RuntimeWarning: Failed to disconnect (<bound method BeepSettingsWidget.on_setting_changed of <MicMute.gui.settings.BeepSettingsWidget(0x23c9059f250) at 0x0000023C95CE0E00>>) from signal "setting_changed(QString,PyObject)".
+    signals.setting_changed.disconnect(self.on_setting_changed)
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 71 from device <POINTER(IMMDevice) ptr=0x23c94ec7330 at 23c94c9eb10>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 72 from device <POINTER(IMMDevice) ptr=0x23c94ec7330 at 23c94c9eb10>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 73 from device <POINTER(IMMDevice) ptr=0x23c94ec7ab0 at 23c94c9f1d0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 74 from device <POINTER(IMMDevice) ptr=0x23c94ec7ab0 at 23c94c9f1d0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 68 from device <POINTER(IMMDevice) ptr=0x23c94ec9360 at 23c94c9fad0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 69 from device <POINTER(IMMDevice) ptr=0x23c94ec9360 at 23c94c9fad0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94ec8640 at 23c95fd4cb0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94ec8640 at 23c95fd4cb0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94ec8be0 at 23c95fd4e60>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94ec8be0 at 23c95fd4e60>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94ec8c80 at 23c95fd5490>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 26 from device <POINTER(IMMDevice) ptr=0x23c94ec8c80 at 23c95fd5490>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94ec89b0 at 23c95fd56d0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94ec89b0 at 23c95fd56d0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 27 from device <POINTER(IMMDevice) ptr=0x23c94ec8730 at 23c95fd5ac0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 28 from device <POINTER(IMMDevice) ptr=0x23c94ec8730 at 23c95fd5ac0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 63 from device <POINTER(IMMDevice) ptr=0x23c94ec8a50 at 23c95fd6330>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 64 from device <POINTER(IMMDevice) ptr=0x23c94ec8a50 at 23c95fd6330>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 27 from device <POINTER(IMMDevice) ptr=0x23c94ec9040 at 23c95fd63c0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 28 from device <POINTER(IMMDevice) ptr=0x23c94ec9040 at 23c95fd63c0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 24 from device <POINTER(IMMDevice) ptr=0x23c94ec85a0 at 23c95fd6600>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 25 from device <POINTER(IMMDevice) ptr=0x23c94ec85a0 at 23c95fd6600>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 27 from device <POINTER(IMMDevice) ptr=0x23c94ec8550 at 23c95fd67b0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+tests/test_gui.py::test_device_selection_widget
+  C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py:257: UserWarning: COMError attempting to get property 28 from device <POINTER(IMMDevice) ptr=0x23c94ec8550 at 23c95fd67b0>: COMError(-536870389, None, (None, None, None, 0, None))
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 36 passed, 50 warnings in 1.62s =======================

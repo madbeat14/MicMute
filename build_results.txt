@@ -1,0 +1,142 @@
+Resolved 30 packages in 2.03s
+Audited 8 packages in 0.95ms
+Resolved 30 packages in 1ms
+Building MicMute v2.14.0
+Version info: (2, 14, 0, 0, '')
+[OK] Generated C:\Users\papop\Desktop\TaskScheduler\MicMute\MicMute.spec
+  Entry point: C:\Users\papop\Desktop\TaskScheduler\MicMute\run.py
+  Source path: C:\Users\papop\Desktop\TaskScheduler\MicMute\src
+  Assets: C:\Users\papop\Desktop\TaskScheduler\MicMute\src\MicMute\assets
+  Version: 2.14.0
+211 INFO: PyInstaller: 6.19.0, contrib hooks: 2026.1
+212 INFO: Python: 3.14.0
+239 INFO: Platform: Windows-11-10.0.26200-SP0
+239 INFO: Python environment: C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64
+243 INFO: Removing temporary files and cleaning cache in C:\Users\papop\AppData\Local\pyinstaller
+436 INFO: Imported existing <module 'comtypes.gen' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
+436 INFO: Using writeable comtypes cache directory: 'C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\gen'
+491 INFO: Module search paths (PYTHONPATH):
+['C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\python314.zip',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\DLLs',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages',
+ 'C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\src',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\win32',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\win32\\lib',
+ 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\Pythonwin',
+ 'C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute',
+ 'C:\\Users\\papop\\Desktop\\TaskScheduler\\MicMute\\src']
+995 INFO: Appending 'datas' from .spec
+996 INFO: checking Analysis
+996 INFO: Building Analysis because Analysis-00.toc is non existent
+996 INFO: Looking for Python shared library...
+996 INFO: Using Python shared library: C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\python314.dll
+997 INFO: Running Analysis Analysis-00.toc
+997 INFO: Target bytecode optimization level: 0
+997 INFO: Initializing module dependency graph...
+998 INFO: Initializing module graph hook caches...
+1066 INFO: Analyzing modules for base_library.zip ...
+2558 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+3038 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+3396 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+3408 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+5849 INFO: Caching module dependency graph...
+5887 INFO: Analyzing C:\Users\papop\Desktop\TaskScheduler\MicMute\run.py
+5911 INFO: Processing standard module hook 'hook-PySide6.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+6086 INFO: Processing standard module hook 'hook-shiboken6.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+6382 INFO: Processing standard module hook 'hook-PySide6.QtNetwork.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+9615 INFO: Processing standard module hook 'hook-PySide6.QtCore.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+14270 INFO: Processing standard module hook 'hook-PySide6.QtGui.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+35331 INFO: Processing standard module hook 'hook-PySide6.QtWidgets.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+39424 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+39472 INFO: Processing standard module hook 'hook-numpy.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+40324 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+40428 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+41810 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+41915 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+42699 INFO: Processing standard module hook 'hook-psutil.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+43564 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+43566 INFO: SetuptoolsInfo: initializing cached setuptools info...
+44918 INFO: Processing standard module hook 'hook-charset_normalizer.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+45468 INFO: Processing standard module hook 'hook-comtypes.client.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+46167 INFO: Processing standard module hook 'hook-PySide6.QtMultimedia.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+49655 INFO: Processing standard module hook 'hook-PySide6.QtSvg.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+50491 INFO: Processing module hooks (post-graph stage)...
+50514 INFO: Processing standard module hook 'hook-PySide6.QtMultimediaWidgets.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+51310 INFO: Performing binary vs. data reclassification (158 entries)
+51392 INFO: Looking for ctypes DLLs
+51528 INFO: Analyzing run-time hooks ...
+51531 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+51534 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+51537 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+51540 INFO: Including run-time hook 'pyi_rth_pyside6.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+51542 INFO: Processing pre-find-module-path hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+51545 INFO: Processing standard module hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\PyInstaller\\hooks'
+51560 INFO: Creating base_library.zip...
+51580 INFO: Looking for dynamic libraries
+Error parsing config file: Expecting value: line 2 column 16 (char 17)
+52472 INFO: Extra DLL search directories (AddDllDirectory): ['C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\shiboken6', 'C:\\Users\\papop\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\numpy.libs']
+52472 INFO: Extra DLL search directories (PATH): []
+54310 INFO: Warnings written to C:\Users\papop\Desktop\TaskScheduler\MicMute\build\MicMute\warn-MicMute.txt
+54352 INFO: Graph cross-reference written to C:\Users\papop\Desktop\TaskScheduler\MicMute\build\MicMute\xref-MicMute.html
+54391 INFO: checking PYZ
+54391 INFO: Building PYZ because PYZ-00.toc is non existent
+54391 INFO: Building PYZ (ZlibArchive) C:\Users\papop\Desktop\TaskScheduler\MicMute\build\MicMute\PYZ-00.pyz
+54690 INFO: Building PYZ (ZlibArchive) C:\Users\papop\Desktop\TaskScheduler\MicMute\build\MicMute\PYZ-00.pyz completed successfully.
+54712 INFO: checking PKG
+54713 INFO: Building PKG because PKG-00.toc is non existent
+54713 INFO: Building PKG (CArchive) MicMute.pkg
+61976 INFO: Building PKG (CArchive) MicMute.pkg completed successfully.
+61985 INFO: Bootloader C:\Users\papop\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe
+61985 INFO: checking EXE
+61985 INFO: Building EXE because EXE-00.toc is non existent
+61985 INFO: Building EXE from EXE-00.toc
+61990 INFO: Copying bootloader EXE to C:\Users\papop\Desktop\TaskScheduler\MicMute\dist\MicMute.exe
+61996 INFO: Copying icon to EXE
+62001 INFO: Copying version information to EXE
+62008 INFO: Copying 0 resources to EXE
+62008 INFO: Embedding manifest in EXE
+62013 INFO: Appending PKG archive to EXE
+62055 INFO: Fixing EXE headers
+62355 INFO: Building EXE from EXE-00.toc completed successfully.
+62367 INFO: Build complete! The results are available in: C:\Users\papop\Desktop\TaskScheduler\MicMute\dist
+Building EXE using spec file: C:\Users\papop\Desktop\TaskScheduler\MicMute\MicMute.spec
+Error parsing config file: Expecting value: line 2 column 16 (char 17)
+
+==================================================
+          MicMute Developer Build Script
+      Upgrade -> Sync -> Lock -> Generate -> Build
+==================================================
+    
+
+-> Checking for uv...
+[OK] uv found: uv 0.10.7 (08ab1a344 2026-02-27)
+
+==================================================
+-> Upgrading dependencies
+==================================================
+[OK] Upgrading dependencies
+
+==================================================
+-> Locking dependencies
+==================================================
+[OK] Locking dependencies
+
+==================================================
+-> Generating spec file
+==================================================
+[OK] Generating spec file
+
+==================================================
+-> Building executable
+==================================================
+[OK] Building executable
+
+==================================================
+              BUILD COMPLETE!
+==================================================
+  Output: dist/MicMute.exe
+==================================================
+    
