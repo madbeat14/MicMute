@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.13.13] - 2026-02-27
+### Fixed
+- **Persistent Overlay Topmost**: Resolved multiple edge cases where the overlay could lose its always-on-top position.
+    - **Removed rate-limiter**: `_force_topmost()` no longer has an internal 500ms skip gate — every timer tick actually calls `SetWindowPos`, preventing gaps in Z-order reassertion.
+    - **Z-order verification**: `_visibility_check()` now reads `WS_EX_TOPMOST` via `GetWindowLongW`. If the style was stripped by another application, it immediately re-asserts topmost.
+    - **Post-drag reassertion**: `_force_topmost()` is called after every mouse drag release so the overlay doesn't lose topmost status during repositioning.
+    - **Instant show reassertion**: `showEvent` now calls `_force_topmost()` directly instead of via a 50ms `QTimer.singleShot` delay.
+    - **Faster recovery**: Topmost reassertion timer interval reduced from 1000ms to 500ms for quicker recovery after another window takes the foreground.
+- **Auto-restore improvement**: `_visibility_check()` now also calls `_force_topmost()` when restoring from hidden or minimized state.
+
 ## [2.13.12] - 2026-02-26
 ### Performance
 - **Pixmap Caching**: `StatusOverlay` now caches `QIcon.pixmap()` results. Previously a new `QIcon` object was created on every mute toggle; now icons are rendered once and reused.

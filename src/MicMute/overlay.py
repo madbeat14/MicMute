@@ -15,7 +15,6 @@ from PySide6.QtCore import (
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
-    QElapsedTimer,
     QRect,
     Signal,
     Slot,
@@ -383,7 +382,7 @@ class StatusOverlay(QWidget):
 
         # Topmost Timer - Re-assert topmost position periodically
         self.topmost_timer = QTimer()
-        self.topmost_timer.setInterval(1000)
+        self.topmost_timer.setInterval(500)
         self.topmost_timer.timeout.connect(self._force_topmost)
 
         # Visibility Monitor
@@ -391,10 +390,6 @@ class StatusOverlay(QWidget):
         self.visibility_timer.setInterval(3000)
         self.visibility_timer.timeout.connect(self._visibility_check)
         self._consecutive_hidden_count = 0
-        # Monotonic timer for rate-limiting _force_topmost
-        self._topmost_elapsed = QElapsedTimer()
-        self._topmost_elapsed.start()
-        self._last_topmost_ms: int = 0
 
         self.resize(60, 40)
 
@@ -409,15 +404,9 @@ class StatusOverlay(QWidget):
 
         Always re-asserts topmost position so that other TOPMOST windows
         (e.g. fullscreen apps, game overlays) cannot sit above this widget.
-        Rate-limited to prevent GUI thread flooding.
         """
         if not self.isVisible():
             return
-
-        current_ms = self._topmost_elapsed.elapsed()
-        if current_ms - self._last_topmost_ms < 500:
-            return
-        self._last_topmost_ms = current_ms
 
         try:
             hwnd = int(self.winId())
@@ -443,7 +432,12 @@ class StatusOverlay(QWidget):
             pass
 
     def _visibility_check(self) -> None:
-        """Check if the overlay is actually visible and on top."""
+        """Check if the overlay is actually visible and on top.
+
+        Verifies Qt visibility, minimized state, and that the
+        WS_EX_TOPMOST extended style has not been stripped by another
+        application or the OS.
+        """
         is_config_enabled = self.current_config.get("enabled", False)
 
         if is_config_enabled and not self.isVisible():
@@ -451,6 +445,7 @@ class StatusOverlay(QWidget):
             if self._consecutive_hidden_count >= 2:
                 print("[Overlay] Auto-restoring: overlay enabled but not visible")
                 self.show()
+                self._force_topmost()
                 self._consecutive_hidden_count = 0
             return
 
@@ -469,9 +464,18 @@ class StatusOverlay(QWidget):
                 self._consecutive_hidden_count += 1
                 if self._consecutive_hidden_count >= 2:
                     ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
+                    self._force_topmost()
                     self._consecutive_hidden_count = 0
             else:
                 self._consecutive_hidden_count = 0
+
+            # Verify WS_EX_TOPMOST style hasn't been stripped
+            GWL_EXSTYLE = -20
+            WS_EX_TOPMOST = 0x00000008
+            ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            if not (ex_style & WS_EX_TOPMOST):
+                print("[Overlay] WS_EX_TOPMOST lost, re-asserting...")
+                self._force_topmost()
         except Exception:
             pass
 
@@ -482,7 +486,7 @@ class StatusOverlay(QWidget):
             event: The show event.
         """
         super().showEvent(event)
-        QTimer.singleShot(50, self._force_topmost)
+        self._force_topmost()
 
     def raise_(self) -> None:
         """Override raise_ to also force topmost."""
@@ -769,6 +773,7 @@ class StatusOverlay(QWidget):
             self.current_config["y"] = self.y()
             self.current_config["position_mode"] = "Custom"
             self.config_changed.emit(self.current_config)
+            self._force_topmost()
 
     def closeEvent(self, event: Any) -> None:
         """Handle the close event to ensure cleanup.
