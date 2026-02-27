@@ -173,7 +173,10 @@ def main() -> int:
     osd.set_config(audio.osd_config)
 
     # Persistent Overlay Initialization
-    overlay = StatusOverlay(svg_white_unmuted, svg_white_muted)
+    overlay = StatusOverlay(
+        svg_white_unmuted, svg_white_muted,
+        svg_black_unmuted, svg_black_muted,
+    )
     overlay.set_config(audio.persistent_overlay, initial_mute_state=current_mute_state)
     overlay.set_target_device(
         audio.persistent_overlay.get("device_id"),

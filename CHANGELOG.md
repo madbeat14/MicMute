@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.0] - 2026-02-27
+### Features
+- **Adaptive Overlay Icon**: The Persistent Overlay now automatically adapts its icon color (light or dark) based on the background brightness for optimal visibility. It periodically samples the screen area behind the overlay and uses a perceived luminance formula with hysteresis to avoid flickering.
+
+### Tests
+- **Adaptive Icon Testing**: Added 8 new tests to `test_overlay.py` covering background sampling mocks, hysteresis logic, and backward compatibility.
+
 ## [2.13.13] - 2026-02-27
 ### Fixed
 - **Persistent Overlay Topmost**: Resolved multiple edge cases where the overlay could lose its always-on-top position.

@@ -20,7 +20,7 @@ from PySide6.QtCore import (
     Slot,
     QThread,
 )
-from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QPixmap, QCursor
+from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QIcon, QPixmap, QCursor, QImage
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QWidget,
@@ -316,12 +316,20 @@ class StatusOverlay(QWidget):
     SWP_NOACTIVATE: ClassVar[int] = 0x0010
     SWP_SHOWWINDOW: ClassVar[int] = 0x0040
 
-    def __init__(self, icon_unmuted_path: str, icon_muted_path: str) -> None:
+    def __init__(
+        self,
+        icon_unmuted_path: str,
+        icon_muted_path: str,
+        icon_unmuted_dark: str = "",
+        icon_muted_dark: str = "",
+    ) -> None:
         """Initialize the overlay widget.
 
         Args:
-            icon_unmuted_path: Path to the unmuted icon.
-            icon_muted_path: Path to the muted icon.
+            icon_unmuted_path: Path to the unmuted icon (light/white variant).
+            icon_muted_path: Path to the muted icon (light/white variant).
+            icon_unmuted_dark: Path to the unmuted icon (dark/black variant).
+            icon_muted_dark: Path to the muted icon (dark/black variant).
         """
         super().__init__()
 
@@ -334,8 +342,13 @@ class StatusOverlay(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
 
+        # Icon paths: light (white) and dark (black) variants
         self.icon_unmuted = icon_unmuted_path
         self.icon_muted = icon_muted_path
+        self.icon_unmuted_dark = icon_unmuted_dark
+        self.icon_muted_dark = icon_muted_dark
+        self._use_dark_icon = False
+
         self.is_muted = False
         self.show_vu = False
         self.target_device_id: str | None = None
@@ -390,6 +403,11 @@ class StatusOverlay(QWidget):
         self.visibility_timer.setInterval(3000)
         self.visibility_timer.timeout.connect(self._visibility_check)
         self._consecutive_hidden_count = 0
+
+        # Background brightness check timer for adaptive icon color
+        self._bg_check_timer = QTimer()
+        self._bg_check_timer.setInterval(2000)
+        self._bg_check_timer.timeout.connect(self._update_icon_for_background)
 
         self.resize(60, 40)
 
@@ -528,7 +546,7 @@ class StatusOverlay(QWidget):
         self.icon_size = icon_s
         self.icon_label.setFixedSize(icon_s, icon_s)
 
-        path = self.icon_muted if self.is_muted else self.icon_unmuted
+        path = self._current_icon_path()
         self.icon_label.setPixmap(self._get_cached_pixmap(path, icon_s))
 
         self.position_mode = config.get("position_mode", "Custom")
@@ -550,12 +568,14 @@ class StatusOverlay(QWidget):
             self._force_topmost()
             self.topmost_timer.start()
             self.visibility_timer.start()
+            self._bg_check_timer.start()
             self.update_status(self.is_muted)
         else:
             self.hide()
             self.stop_meter()
             self.topmost_timer.stop()
             self.visibility_timer.stop()
+            self._bg_check_timer.stop()
 
     def set_target_device(
         self, device_id: str | None, fallback_device_id: str | None = None
@@ -606,6 +626,96 @@ class StatusOverlay(QWidget):
 
         self.move(x, y)
 
+    def _current_icon_path(self) -> str:
+        """Return the icon path for the current mute state and brightness.
+
+        Returns:
+            Path to the appropriate SVG icon.
+        """
+        if self._use_dark_icon and self.icon_unmuted_dark and self.icon_muted_dark:
+            return self.icon_muted_dark if self.is_muted else self.icon_unmuted_dark
+        return self.icon_muted if self.is_muted else self.icon_unmuted
+
+    def _sample_background_brightness(self) -> float:
+        """Sample the average brightness of the screen area behind the overlay.
+
+        Captures a screenshot of the region behind the overlay and computes
+        the perceived luminance using the formula:
+        L = 0.299*R + 0.587*G + 0.114*B
+
+        Returns:
+            Average brightness value (0.0-255.0), or -1.0 on failure.
+        """
+        try:
+            screen = QApplication.primaryScreen()
+            if not screen:
+                return -1.0
+
+            x, y = self.x(), self.y()
+            w, h = self.width(), self.height()
+
+            # Temporarily hide to capture clean background
+            # Instead, grab a slightly larger area around the overlay
+            # and sample from the edges to avoid capturing ourselves
+            margin = 2
+            grab = screen.grabWindow(
+                0,
+                max(0, x - margin),
+                max(0, y - margin),
+                w + margin * 2,
+                h + margin * 2,
+            )
+            img: QImage = grab.toImage()
+            if img.isNull():
+                return -1.0
+
+            # Sample every 4th pixel for performance
+            total_lum = 0.0
+            count = 0
+            img_w, img_h = img.width(), img.height()
+            step = 4
+            for py in range(0, img_h, step):
+                for px in range(0, img_w, step):
+                    c = img.pixelColor(px, py)
+                    total_lum += 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
+                    count += 1
+
+            return total_lum / count if count > 0 else -1.0
+        except Exception:
+            return -1.0
+
+    def _update_icon_for_background(self) -> None:
+        """Check background brightness and switch icon variant if needed.
+
+        Uses a hysteresis band of ±15 around the threshold of 128 to
+        prevent rapid flickering when the brightness is near the boundary.
+        """
+        if not self.isVisible():
+            return
+        if not (self.icon_unmuted_dark and self.icon_muted_dark):
+            return
+
+        brightness = self._sample_background_brightness()
+        if brightness < 0:
+            return
+
+        # Hysteresis: switch to dark icons above 143, back to light below 113
+        threshold_high = 143
+        threshold_low = 113
+
+        if self._use_dark_icon and brightness < threshold_low:
+            new_dark = False
+        elif not self._use_dark_icon and brightness > threshold_high:
+            new_dark = True
+        else:
+            return  # Within hysteresis band, no change
+
+        if new_dark != self._use_dark_icon:
+            self._use_dark_icon = new_dark
+            path = self._current_icon_path()
+            size = getattr(self, "icon_size", 24)
+            self.icon_label.setPixmap(self._get_cached_pixmap(path, size))
+
     def _get_cached_pixmap(self, path: str, size: int) -> QPixmap:
         """Return a cached pixmap, creating it only if not already cached.
 
@@ -629,7 +739,7 @@ class StatusOverlay(QWidget):
         """
         self.is_muted = is_muted
 
-        path = self.icon_muted if is_muted else self.icon_unmuted
+        path = self._current_icon_path()
         size = getattr(self, "icon_size", 24)
         self.icon_label.setPixmap(self._get_cached_pixmap(path, size))
 
@@ -784,4 +894,5 @@ class StatusOverlay(QWidget):
         self.stop_meter()
         self.topmost_timer.stop()
         self.visibility_timer.stop()
+        self._bg_check_timer.stop()
         super().closeEvent(event)

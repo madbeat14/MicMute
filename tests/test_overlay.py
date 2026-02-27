@@ -3,6 +3,7 @@ import sys
 from unittest.mock import MagicMock, patch, call
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QImage, QColor
 
 @pytest.fixture(scope="session")
 def qapp():
@@ -125,4 +126,135 @@ def test_topmost_timer_interval(qapp):
     """Test that the topmost timer uses 500ms interval for fast recovery."""
     overlay = StatusOverlay("icon_unmuted.svg", "icon_muted.svg")
     assert overlay.topmost_timer.interval() == 500
+    overlay.close()
+
+
+# --- Adaptive Icon Tests ---
+
+
+def test_adaptive_icon_init_with_dark_icons(qapp):
+    """Test StatusOverlay accepts dark icon paths and defaults to light icons."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    assert overlay.icon_unmuted_dark == "unmuted_dark.svg"
+    assert overlay.icon_muted_dark == "muted_dark.svg"
+    assert overlay._use_dark_icon is False
+    overlay.close()
+
+
+def test_adaptive_icon_init_without_dark_icons(qapp):
+    """Test StatusOverlay works without dark icon paths (backward compat)."""
+    overlay = StatusOverlay("unmuted_white.svg", "muted_white.svg")
+    assert overlay.icon_unmuted_dark == ""
+    assert overlay.icon_muted_dark == ""
+    assert overlay._use_dark_icon is False
+    overlay.close()
+
+
+def _make_solid_image(width, height, color):
+    """Helper: create a solid-color QImage."""
+    img = QImage(width, height, QImage.Format_ARGB32)
+    img.fill(color)
+    return img
+
+
+def test_adaptive_icon_dark_background(qapp):
+    """When background is dark, white (light) icons should be used."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.show()
+
+    # Mock _sample_background_brightness to return dark (50)
+    with patch.object(overlay, "_sample_background_brightness", return_value=50.0):
+        overlay._use_dark_icon = True  # Start as dark to test switch
+        overlay._update_icon_for_background()
+        assert overlay._use_dark_icon is False  # Should switch to light icons
+
+    overlay.close()
+
+
+def test_adaptive_icon_light_background(qapp):
+    """When background is light, dark icons should be used."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.show()
+
+    # Mock _sample_background_brightness to return light (200)
+    with patch.object(overlay, "_sample_background_brightness", return_value=200.0):
+        overlay._use_dark_icon = False  # Start as light to test switch
+        overlay._update_icon_for_background()
+        assert overlay._use_dark_icon is True  # Should switch to dark icons
+
+    overlay.close()
+
+
+def test_adaptive_icon_hysteresis_no_flicker(qapp):
+    """Within hysteresis band, icon state should not change."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.show()
+
+    # Brightness = 130 is within the hysteresis band (113-143)
+    with patch.object(overlay, "_sample_background_brightness", return_value=130.0):
+        # Currently using light icons — should NOT switch
+        overlay._use_dark_icon = False
+        overlay._update_icon_for_background()
+        assert overlay._use_dark_icon is False
+
+        # Currently using dark icons — should NOT switch back either
+        overlay._use_dark_icon = True
+        overlay._update_icon_for_background()
+        assert overlay._use_dark_icon is True
+
+    overlay.close()
+
+
+def test_current_icon_path_muted_light(qapp):
+    """Test _current_icon_path returns white muted icon when not using dark."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.is_muted = True
+    overlay._use_dark_icon = False
+    assert overlay._current_icon_path() == "muted_white.svg"
+    overlay.close()
+
+
+def test_current_icon_path_muted_dark(qapp):
+    """Test _current_icon_path returns dark muted icon when using dark."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.is_muted = True
+    overlay._use_dark_icon = True
+    assert overlay._current_icon_path() == "muted_dark.svg"
+    overlay.close()
+
+
+def test_current_icon_path_unmuted_dark(qapp):
+    """Test _current_icon_path returns dark unmuted icon when using dark."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.is_muted = False
+    overlay._use_dark_icon = True
+    assert overlay._current_icon_path() == "unmuted_dark.svg"
+    overlay.close()
+
+
+def test_bg_check_timer_interval(qapp):
+    """Test that the background check timer uses 2000ms interval."""
+    overlay = StatusOverlay("icon_unmuted.svg", "icon_muted.svg")
+    assert overlay._bg_check_timer.interval() == 2000
     overlay.close()

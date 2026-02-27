@@ -29,8 +29,8 @@ pyz = PYZ(a.pure)
 # Windows version info
 vs_info = VSVersionInfo(
     ffi=FixedFileInfo(
-        filevers=(2, 13, 10, 0),
-        prodvers=(2, 13, 10, 0),
+        filevers=(2, 14, 0, 0),
+        prodvers=(2, 14, 0, 0),
         mask=0x3f,
         flags=0x0,
         OS=0x40004,
@@ -46,12 +46,12 @@ vs_info = VSVersionInfo(
                     [
                         StringStruct('CompanyName', 'madbeat14'),
                         StringStruct('FileDescription', 'MicMute - Microphone Mute Toggle'),
-                        StringStruct('FileVersion', '2.13.10.dev0+g7c94a2202.d20260206'),
+                        StringStruct('FileVersion', '2.14.0'),
                         StringStruct('InternalName', 'MicMute'),
                         StringStruct('LegalCopyright', 'Copyright (c) 2024 madbeat14'),
                         StringStruct('OriginalFilename', 'MicMute.exe'),
                         StringStruct('ProductName', 'MicMute'),
-                        StringStruct('ProductVersion', '2.13.10.dev0+g7c94a2202.d20260206'),
+                        StringStruct('ProductVersion', '2.14.0'),
                     ]
                 )
             ]
