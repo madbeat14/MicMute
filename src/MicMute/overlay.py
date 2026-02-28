@@ -695,20 +695,26 @@ class StatusOverlay(QWidget):
         if not (self.icon_unmuted_dark and self.icon_muted_dark):
             return
 
-        brightness = self._sample_background_brightness()
-        if brightness < 0:
-            return
-
-        # Hysteresis: switch to dark icons above 143, back to light below 113
-        threshold_high = 143
-        threshold_low = 113
-
-        if self._use_dark_icon and brightness < threshold_low:
+        theme = self.current_config.get("theme", "Auto")
+        if theme == "White":
             new_dark = False
-        elif not self._use_dark_icon and brightness > threshold_high:
+        elif theme == "Black":
             new_dark = True
         else:
-            return  # Within hysteresis band, no change
+            brightness = self._sample_background_brightness()
+            if brightness < 0:
+                return
+
+            # Hysteresis: switch to dark icons above 143, back to light below 113
+            threshold_high = 143
+            threshold_low = 113
+
+            if self._use_dark_icon and brightness < threshold_low:
+                new_dark = False
+            elif not self._use_dark_icon and brightness > threshold_high:
+                new_dark = True
+            else:
+                return  # Within hysteresis band, no change
 
         if new_dark != self._use_dark_icon:
             self._use_dark_icon = new_dark
@@ -745,6 +751,11 @@ class StatusOverlay(QWidget):
 
         is_enabled = self.current_config.get("enabled", False)
         should_run_meter = (not is_muted) and is_enabled and self.show_vu
+
+        # Force topmost re-assertion on toggle to guarantee visibility 
+        # over newly created or competing TOPMOST windows.
+        if is_enabled:
+            self._force_topmost()
 
         if not should_run_meter:
             self.stop_meter()

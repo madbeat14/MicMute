@@ -51,7 +51,8 @@ def test_status_overlay_config(qapp):
         'y': 10,
         'position_mode': 'Custom',
         'locked': True,
-        'sensitivity': 5
+        'sensitivity': 5,
+        'theme': 'Auto'
     }
     overlay.set_config(config)
     
@@ -166,6 +167,7 @@ def test_adaptive_icon_dark_background(qapp):
         "unmuted_white.svg", "muted_white.svg",
         "unmuted_dark.svg", "muted_dark.svg",
     )
+    overlay.current_config = {"theme": "Auto"}
     overlay.show()
 
     # Mock _sample_background_brightness to return dark (50)
@@ -183,6 +185,7 @@ def test_adaptive_icon_light_background(qapp):
         "unmuted_white.svg", "muted_white.svg",
         "unmuted_dark.svg", "muted_dark.svg",
     )
+    overlay.current_config = {"theme": "Auto"}
     overlay.show()
 
     # Mock _sample_background_brightness to return light (200)
@@ -200,6 +203,7 @@ def test_adaptive_icon_hysteresis_no_flicker(qapp):
         "unmuted_white.svg", "muted_white.svg",
         "unmuted_dark.svg", "muted_dark.svg",
     )
+    overlay.current_config = {"theme": "Auto"}
     overlay.show()
 
     # Brightness = 130 is within the hysteresis band (113-143)
@@ -214,6 +218,53 @@ def test_adaptive_icon_hysteresis_no_flicker(qapp):
         overlay._update_icon_for_background()
         assert overlay._use_dark_icon is True
 
+    overlay.close()
+
+def test_forced_white_theme(qapp):
+    """Test forcing the White theme bypasses background sampling."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.current_config = {"theme": "White"}
+    overlay._use_dark_icon = True # Start with dark
+    overlay.show()
+
+    with patch.object(overlay, "_sample_background_brightness") as mock_sample:
+        overlay._update_icon_for_background()
+        assert overlay._use_dark_icon is False
+        mock_sample.assert_not_called()
+
+    overlay.close()
+
+
+def test_forced_black_theme(qapp):
+    """Test forcing the Black theme bypasses background sampling."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.current_config = {"theme": "Black"}
+    overlay._use_dark_icon = False # Start with light
+    overlay.show()
+
+    with patch.object(overlay, "_sample_background_brightness") as mock_sample:
+        overlay._update_icon_for_background()
+        assert overlay._use_dark_icon is True
+        mock_sample.assert_not_called()
+
+    overlay.close()
+
+def test_update_status_forces_topmost(qapp):
+    """Verify that update_status explicitly forces topmost."""
+    overlay = StatusOverlay(
+        "unmuted_white.svg", "muted_white.svg",
+        "unmuted_dark.svg", "muted_dark.svg",
+    )
+    overlay.current_config = {"enabled": True}
+    with patch.object(overlay, "_force_topmost") as mock_force_topmost:
+        overlay.update_status(True)
+        mock_force_topmost.assert_called_once()
     overlay.close()
 
 

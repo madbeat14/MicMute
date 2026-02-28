@@ -704,10 +704,17 @@ class OverlaySettingsWidget(QWidget):
         current_mode = self.audio.persistent_overlay.get('position_mode', 'Custom')
         self.pos_mode_combo.setCurrentText(current_mode)
         
+        # Theme Mode
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Auto", "White", "Black"])
+        current_theme = self.audio.persistent_overlay.get('theme', 'Auto')
+        self.theme_combo.setCurrentText(current_theme)
+        
         layout.addRow(self.enabled_cb)
         layout.addRow(self.vu_cb)
         layout.addRow(self.locked_cb)
         layout.addRow("Position:", self.pos_mode_combo)
+        layout.addRow("Icon Theme:", self.theme_combo)
         layout.addRow("Size (Height):", size_layout)
         layout.addRow("Opacity:", opacity_layout)
         layout.addRow("Sensitivity:", sens_layout)
@@ -717,6 +724,7 @@ class OverlaySettingsWidget(QWidget):
         self.vu_cb.toggled.connect(self.apply_settings)
         self.locked_cb.toggled.connect(self.apply_settings)
         self.pos_mode_combo.currentTextChanged.connect(self.apply_settings)
+        self.theme_combo.currentTextChanged.connect(self.apply_settings)
         self.scale_slider.valueChanged.connect(self.apply_settings)
         self.opacity_slider.valueChanged.connect(self.apply_settings)
         self.sens_slider.valueChanged.connect(self.apply_settings)
@@ -736,6 +744,7 @@ class OverlaySettingsWidget(QWidget):
             'x': self.audio.persistent_overlay.get('x', 100),
             'y': self.audio.persistent_overlay.get('y', 100),
             'device_id': self.audio.persistent_overlay.get('device_id'),
+            'theme': self.theme_combo.currentText(),
         }
         self.audio.update_persistent_overlay(new_config)
 
@@ -746,6 +755,7 @@ class OverlaySettingsWidget(QWidget):
             self.vu_cb.setChecked(value.get('show_vu', False))
             self.locked_cb.setChecked(value.get('locked', False))
             self.pos_mode_combo.setCurrentText(value.get('position_mode', 'Custom'))
+            self.theme_combo.setCurrentText(value.get('theme', 'Auto'))
             self.scale_slider.setValue(value.get('scale', 100))
             self.opacity_slider.setValue(value.get('opacity', 80))
             self.opacity_spin.setValue(value.get('opacity', 80))
@@ -771,6 +781,7 @@ class OverlaySettingsWidget(QWidget):
             'x': self.audio.persistent_overlay.get('x', 100),
             'y': self.audio.persistent_overlay.get('y', 100),
             'device_id': self.audio.persistent_overlay.get('device_id'),
+            'theme': self.theme_combo.currentText(),
         }
 
     def cleanup(self):

@@ -120,6 +120,7 @@ class ConfigManager:
             "sensitivity": 5,
             "device_id": None,
             "scale": 100,
+            "theme": "Auto",
         }
 
     def load_config(self) -> None:

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.15.0] - 2026-02-28
+### Features
+- **Persistent Overlay Theme**: Added a new configuration option to force the Persistent Overlay icon to a specific color (White or Black) instead of relying solely on the Auto background detection.
+- **Topmost Reset**: The persistent overlay now actively re-asserts its topmost status every time the mute state is toggled, ensuring it stays visible even if a fullscreen application recently forced its way to the front.
+
 ## [2.14.0] - 2026-02-27
 ### Features
 - **Adaptive Overlay Icon**: The Persistent Overlay now automatically adapts its icon color (light or dark) based on the background brightness for optimal visibility. It periodically samples the screen area behind the overlay and uses a perceived luminance formula with hysteresis to avoid flickering.
