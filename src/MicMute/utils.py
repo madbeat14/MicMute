@@ -118,6 +118,10 @@ TASK_XML_TEMPLATE: str = r"""<?xml version="1.0" encoding="UTF-16"?>
     <LogonTrigger>
       <Enabled>true</Enabled>
     </LogonTrigger>
+    <EventTrigger>
+      <Enabled>true</Enabled>
+      <Subscription>&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+    </EventTrigger>
   </Triggers>
   <Principals>
     <Principal id="Author">
@@ -138,14 +142,23 @@ TASK_XML_TEMPLATE: str = r"""<?xml version="1.0" encoding="UTF-16"?>
     </IdleSettings>
     <AllowStartOnDemand>true</AllowStartOnDemand>
     <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
+    <Hidden>true</Hidden>
     <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
     <Priority>0</Priority>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
   </Settings>
   <Actions Context="Author">
     <Exec>
       <Command>{EXE_PATH}</Command>
       <Arguments>{ARGUMENTS}</Arguments>
+      <WorkingDirectory>{WORKING_DIRECTORY}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>
@@ -201,6 +214,7 @@ def _create_startup_task(task_name: str) -> None:
     if getattr(sys, "frozen", False):
         exe_path = sys.executable
         arguments = ""
+        working_dir = str(Path(exe_path).parent)
     else:
         exe_path = sys.executable
         if exe_path.endswith("python.exe"):
@@ -209,11 +223,12 @@ def _create_startup_task(task_name: str) -> None:
                 exe_path = pythonw
         script_path = Path(sys.argv[0]).resolve()
         arguments = f'"{script_path}"'
+        working_dir = str(script_path.parent)
 
     author = os.getlogin()
 
     xml_content = TASK_XML_TEMPLATE.format(
-        AUTHOR=author, EXE_PATH=exe_path, ARGUMENTS=arguments
+        AUTHOR=author, EXE_PATH=exe_path, ARGUMENTS=arguments, WORKING_DIRECTORY=working_dir
     )
 
     fd, temp_path = tempfile.mkstemp(suffix=".xml")
@@ -243,7 +258,7 @@ def _run_schtasks_create(task_name: str, xml_path: str) -> None:
 
     if result.returncode != 0:
         err_msg = result.stderr.decode("cp1252", errors="ignore").strip()
-        if "Access is denied" in err_msg or result.returncode == 5:
+        if "access is denied" in err_msg.lower() or "acceso" in err_msg.lower() or result.returncode == 5:
             _create_task_elevated(task_name, xml_path)
         else:
             raise RuntimeError(f"schtasks failed: {err_msg}")
@@ -290,7 +305,7 @@ def _delete_startup_task(task_name: str) -> None:
 
     if result.returncode != 0:
         err_msg = result.stderr.decode("cp1252", errors="ignore").strip()
-        if "Access is denied" in err_msg or result.returncode == 5:
+        if "access is denied" in err_msg.lower() or "acceso" in err_msg.lower() or result.returncode == 5:
             _delete_task_elevated(task_name)
 
 
